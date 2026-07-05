@@ -23,17 +23,11 @@
   <script>
     window.addEventListener('load', function() {
       setTimeout(function() {
-        if (typeof React === 'undefined' || typeof firebase === 'undefined') {
-          document.getElementById('root').innerHTML =
-            '<div style="padding:30px;font-family:sans-serif;text-align:center;max-width:380px;margin:0 auto">' +
-            '<div style="font-size:56px;margin-bottom:16px">📡</div>' +
-            '<h2 style="color:#dc2626;margin-bottom:12px;font-size:22px">Sin conexión a internet</h2>' +
-            '<p style="color:#64748b;font-size:15px;line-height:1.8;margin-bottom:20px">' +
-            'Esta app necesita internet activo para cargar.<br>' +
-            'Activa WiFi o datos móviles y <strong>recarga la página</strong>.</p>' +
-            '<button onclick="location.reload()" style="background:#0A4F6E;color:#fff;border:none;padding:14px 28px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer">🔄 Recargar</button>' +
-            '<p style="color:#94a3b8;font-size:12px;margin-top:20px">💡 Tip: usa la app desde Netlify para que cargue más rápido.</p>' +
-            '</div>';
+     if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js')
+    .then(r => console.log('SW OK', r.scope))
+    .catch(e => console.warn('SW:', e));
+}
         }
       }, 4000); // esperar 4s a que carguen los scripts
     });
