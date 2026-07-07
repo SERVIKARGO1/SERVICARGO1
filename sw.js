@@ -1,115 +1,104 @@
-const CACHE_NAME = 'servikargo-v5';
-const BASE = 'https://servikargo1.github.io/SERVIKARGO2/';
+// ServiKargo Service Worker v6
+// Estrategia simple: cachea solo recursos estáticos, NUNCA intercepta Firebase ni APIs
 
-const CDN_ASSETS = [
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js',
-  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+const CACHE = 'sk-v6';
+
+// Solo recursos del app shell propio
+const SHELL = [
+  '/SERVIKARGO2/',
+  '/SERVIKARGO2/index.html',
+  '/SERVIKARGO2/manifest.json',
+  '/SERVIKARGO2/icon-192.png',
+  '/SERVIKARGO2/icon-512.png',
 ];
 
-const APP_SHELL = [
-  BASE,
-  BASE + 'index.html',
-  BASE + 'manifest.json',
-  BASE + 'icon-192.png',
-  BASE + 'icon-512.png',
-  BASE + 'icon-192-maskable.png',
-  BASE + 'icon-512-maskable.png',
-];
-
-// INSTALL — cachear app shell y CDN
-self.addEventListener('install', event => {
+// INSTALL — cachear el shell básico
+self.addEventListener('install', e => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      // App shell (must succeed)
-      return cache.addAll(APP_SHELL).catch(() => {})
-        .then(() =>
-          // CDN (best effort, no-cors)
-          Promise.allSettled(
-            CDN_ASSETS.map(url =>
-              fetch(url, { mode: 'no-cors', credentials: 'omit' })
-                .then(r => cache.put(url, r))
-                .catch(() => {})
-            )
-          )
-        );
-    })
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(SHELL).catch(() => {}))
   );
 });
 
 // ACTIVATE — limpiar caches viejas
-self.addEventListener('activate', event => {
-  event.waitUntil(
+self.addEventListener('activate', e => {
+  e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
       ))
       .then(() => clients.claim())
   );
 });
 
-// FETCH — estrategia por tipo de recurso
-self.addEventListener('fetch', event => {
-  const url = event.request.url;
+// FETCH — NUNCA interceptar Firebase ni servicios externos críticos
+self.addEventListener('fetch', e => {
+  const url = e.request.url;
 
-  // Firebase y APIs en tiempo real: siempre red
-  if (url.includes('firebaseio.com') ||
-      url.includes('firebasestorage') ||
-      url.includes('googleapis.com/identitytoolkit') ||
-      url.includes('nominatim.openstreetmap') ||
-      url.includes('tile.openstreetmap') ||
-      url.includes('wa.me') ||
-      url.includes('maps.google')) {
-    return; // fetch normal sin interceptar
+  // ── DEJAR PASAR SIN INTERCEPTAR (siempre red) ─────────────────────────────
+  if (
+    url.includes('firebaseio.com')        ||  // Firebase Realtime DB
+    url.includes('firebasestorage')       ||  // Firebase Storage
+    url.includes('firebase.googleapis')   ||  // Firebase Auth
+    url.includes('identitytoolkit')       ||  // Firebase Auth
+    url.includes('securetoken.google')    ||  // Firebase tokens
+    url.includes('googleapis.com')        ||  // Google APIs
+    url.includes('nominatim')             ||  // Mapas
+    url.includes('openstreetmap')         ||  // Mapas tiles
+    url.includes('wa.me')                 ||  // WhatsApp
+    url.includes('maps.google')           ||  // Google Maps
+    url.includes('gstatic.com')           ||  // Google static (fonts etc)
+    url.includes('fonts.google')          ||  // Google Fonts
+    e.request.method !== 'GET'               // POST, PUT, DELETE, etc.
+  ) {
+    return; // No interceptar — dejar ir directo a la red
   }
 
-  // CDN (React, Firebase SDK, etc.): cache-first
-  if (url.includes('unpkg.com') ||
-      url.includes('gstatic.com') ||
-      url.includes('cdnjs.cloudflare.com') ||
-      url.includes('fonts.gstatic.com') ||
-      url.includes('fonts.googleapis.com')) {
-    event.respondWith(
-      caches.match(event.request)
-        .then(cached => cached || fetch(event.request, { mode: 'no-cors' })
-          .then(r => {
-            const clone = r.clone();
-            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-            return r;
-          })
+  // ── CDN de la app (React, Babel, etc.) — cache-first ─────────────────────
+  if (
+    url.includes('unpkg.com')             ||
+    url.includes('cdnjs.cloudflare.com')  ||
+    url.includes('jsdelivr.net')
+  ) {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request, { mode: 'no-cors' }).then(res => {
+          if (res) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => cached);
+      })
+    );
+    return;
+  }
+
+  // ── App shell propio — network-first, fallback a cache ───────────────────
+  if (url.includes('servikargo1.github.io')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res && res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request)
+          .then(cached => cached || caches.match('/SERVIKARGO2/index.html'))
         )
     );
     return;
   }
 
-  // App shell: network-first con fallback a cache
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        if (response && response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request)
-        .then(cached => cached || caches.match(BASE + 'index.html'))
-      )
-  );
+  // Todo lo demás: red directa
 });
 
-// Mensaje desde la app para limpiar cache
-self.addEventListener('message', event => {
-  if (event.data === 'skipWaiting') self.skipWaiting();
-  if (event.data === 'clearCache') {
-    caches.delete(CACHE_NAME).then(() => {
-      event.ports[0]?.postMessage({ cleared: true });
-    });
-  }
+// Mensajes desde la app
+self.addEventListener('message', e => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
+
