@@ -3,8 +3,6 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <meta name="theme-color" content="#E8622A"/>
-  <meta name="color-scheme" content="dark light"/>
 
   <!-- ═══ PWA META TAGS ═══════════════════════════════════════════════════ -->
   <meta name="theme-color" content="#0CA678" media="(prefers-color-scheme: light)"/>
@@ -111,71 +109,277 @@
     .drv-pulse{animation:drvPulse 1.2s ease infinite}
   </style>
 
-  <!-- ═══ PWA: MANIFEST + SERVICE WORKER ════════════════════════════════ -->
-  <link rel="manifest" href="./manifest.json"/>
-  <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png"/>
-  <link rel="apple-touch-icon" sizes="512x512" href="./icon-512.png"/>
-  <link rel="apple-touch-startup-image"        href="./icon-512.png"/>
+  <!-- ═══ PWA: MANIFEST + SERVICE WORKER + INSTALL ════════════════════════ -->
   <script>
   (function(){
-    // ── Service Worker externo ────────────────────────────────────────────────
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.register('./sw.js', {scope:'./'})
-        .then(function(reg){
-          console.log('[ServiKargo SW] ✓ scope:', reg.scope);
-          reg.addEventListener('updatefound', function(){
-            var nw = reg.installing;
-            if(!nw) return;
-            nw.addEventListener('statechange', function(){
-              if(nw.state==='installed' && navigator.serviceWorker.controller){
-                var fab = document.getElementById('pwa-install-fab');
-                if(fab){ fab.style.display='flex'; fab.textContent='🔄 Actualizar app'; fab.onclick=function(){location.reload();}; }
-              }
-            });
-          });
-          setInterval(function(){ try{ reg.update(); }catch(e){} }, 30*60*1000);
-        })
-        .catch(function(e){ console.warn('[ServiKargo SW]', e.message); });
+    // ── Generar ícono ServiKargo con canvas ────────────────────────────────
+    // Trabajador con casco + llave + motocarro sobre fondo naranja
+    function mkIcon(size){
+      try{
+        var c=document.createElement('canvas'); c.width=c.height=size;
+        var x=c.getContext('2d');
+        var s=size, r=s*0.22;
+        // Fondo redondeado naranja
+        x.beginPath(); x.moveTo(r,0); x.lineTo(s-r,0);
+        x.arcTo(s,0,s,r,r); x.lineTo(s,s-r);
+        x.arcTo(s,s,s-r,s,r); x.lineTo(r,s);
+        x.arcTo(0,s,0,s-r,r); x.lineTo(0,r);
+        x.arcTo(0,0,r,0,r); x.closePath();
+        var grad=x.createLinearGradient(0,0,s,s);
+        grad.addColorStop(0,'#E8622A'); grad.addColorStop(1,'#C4511E');
+        x.fillStyle=grad; x.fill();
+
+        // Escalar todo al tamaño del ícono (viewBox 110x88 → size)
+        var sc=s/120; x.save(); x.translate(s*0.05,s*0.08); x.scale(sc,sc);
+        x.strokeStyle='white'; x.fillStyle='white'; x.lineCap='round'; x.lineJoin='round';
+
+        // ── TRABAJADOR ──
+        // Cabeza
+        x.beginPath(); x.arc(32,19,9,0,Math.PI*2); x.fill();
+        // Casco (naranja oscuro)
+        x.fillStyle='#C4511E';
+        x.beginPath(); x.moveTo(23,20);
+        x.bezierCurveTo(23,7,32,5,32,5);
+        x.bezierCurveTo(41,7,41,20,41,20);
+        x.bezierCurveTo(38,22,38,13,32,11);
+        x.bezierCurveTo(26,13,26,22,23,20);
+        x.closePath(); x.fill();
+        // Visera casco
+        x.fillStyle='white';
+        x.beginPath(); x.roundRect(21,20,22,4,2); x.fill();
+        // Cuerpo
+        x.fillStyle='white'; x.strokeStyle='white';
+        x.lineWidth=6;
+        x.beginPath(); x.moveTo(32,28); x.lineTo(37,47); x.stroke();
+        // Pierna
+        x.lineWidth=5;
+        x.beginPath(); x.moveTo(35,45); x.lineTo(46,54); x.stroke();
+        // Brazo manubrio
+        x.lineWidth=4;
+        x.beginPath(); x.moveTo(34,35); x.lineTo(48,30); x.stroke();
+        // Brazo llave
+        x.beginPath(); x.moveTo(30,34); x.lineTo(15,26); x.stroke();
+
+        // ── LLAVE INGLESA ──
+        x.save();
+        x.translate(10,15); x.rotate(-0.5);
+        x.lineWidth=3;
+        // Mango
+        x.beginPath(); x.roundRect(-3.5,-3,7,20,3.5); x.fill();
+        // Boca arriba
+        x.beginPath(); x.arc(0,-3,5.5,Math.PI,0); x.stroke();
+        x.beginPath(); x.moveTo(-3.5,-3); x.lineTo(-6,-3); x.stroke();
+        x.beginPath(); x.moveTo(3.5,-3);  x.lineTo(6,-3);  x.stroke();
+        // Boca abajo
+        x.beginPath(); x.arc(0,17,5.5,0,Math.PI); x.stroke();
+        x.beginPath(); x.moveTo(-3.5,17); x.lineTo(-6,17); x.stroke();
+        x.beginPath(); x.moveTo(3.5,17);  x.lineTo(6,17);  x.stroke();
+        x.restore();
+
+        // ── MOTOCARRO ──
+        x.lineWidth=4.5; x.strokeStyle='white';
+        // Chasis
+        x.beginPath();
+        x.moveTo(29,52); x.bezierCurveTo(34,36,52,33,52,33); x.lineTo(99,33);
+        x.stroke();
+        // Columna caja
+        x.lineWidth=3.5;
+        x.beginPath(); x.moveTo(52,33); x.lineTo(52,57); x.stroke();
+
+        // ── CAJA DE CARGA ──
+        x.fillStyle='white';
+        x.beginPath(); x.roundRect(52,30,47,27,5); x.fill();
+        x.fillStyle='#E8622A'; x.globalAlpha=0.5;
+        x.beginPath(); x.moveTo(52,43); x.lineTo(99,43); x.lineWidth=1.5;
+        x.strokeStyle='#E8622A'; x.stroke();
+        x.globalAlpha=1.0;
+
+        // ── RUEDAS ──
+        x.strokeStyle='white';
+        // Delantera
+        x.lineWidth=4;
+        x.beginPath(); x.arc(22,63,13,0,Math.PI*2); x.stroke();
+        x.fillStyle='white';
+        x.beginPath(); x.arc(22,63,5,0,Math.PI*2); x.fill();
+        x.fillStyle='#E8622A';
+        x.beginPath(); x.arc(22,63,2,0,Math.PI*2); x.fill();
+        // Trasera
+        x.fillStyle='white'; x.strokeStyle='white';
+        x.lineWidth=4;
+        x.beginPath(); x.arc(88,63,13,0,Math.PI*2); x.stroke();
+        x.beginPath(); x.arc(88,63,5,0,Math.PI*2); x.fill();
+        x.fillStyle='#E8622A';
+        x.beginPath(); x.arc(88,63,2,0,Math.PI*2); x.fill();
+        // Rueda media
+        x.fillStyle='white'; x.strokeStyle='rgba(255,255,255,0.7)';
+        x.lineWidth=3.5;
+        x.beginPath(); x.arc(99,63,10,0,Math.PI*2); x.stroke();
+        x.beginPath(); x.arc(99,63,4,0,Math.PI*2); x.fill();
+        // Eje
+        x.lineWidth=3; x.strokeStyle='white';
+        x.beginPath(); x.moveTo(76,60); x.lineTo(88,60); x.stroke();
+
+        x.restore();
+        return c.toDataURL('image/png');
+      }catch(e){ return ''; }
     }
 
-    // ── Install prompt ────────────────────────────────────────────────────────
-    var deferredPrompt = null;
-    window.addEventListener('beforeinstallprompt', function(e){
-      e.preventDefault(); deferredPrompt = e;
-      var btn = document.getElementById('pwa-install-fab');
-      if(btn) btn.style.display = 'flex';
+    // ── Inyectar Manifest ───────────────────────────────────────────────────
+    function injectManifest(){
+      var icon192=mkIcon(192); var icon512=mkIcon(512);
+      var manifest={
+        name: "ServiKargo Cartagena",
+        short_name: "ServiKargo",
+        description: "Plataforma de transporte en motocarro · Cartagena, Colombia",
+        start_url: "./",
+        scope: "./",
+        display: "standalone",
+        orientation: "portrait-primary",
+        background_color: "#0F2340",
+        theme_color: "#0CA678",
+        lang: "es",
+        dir: "ltr",
+        categories: ["transportation","logistics","business"],
+        icons: [
+          {src:icon192,sizes:"192x192",type:"image/png",purpose:"any maskable"},
+          {src:icon512,sizes:"512x512",type:"image/png",purpose:"any maskable"}
+        ],
+        screenshots: [],
+        shortcuts: [
+          {name:"Solicitar transporte",url:"./?view=cliente",description:"Pide tu transporte"},
+          {name:"Conductor · ServiKargo",url:"./?view=driver",description:"Acceso motocarrista"},
+          {name:"Admin · ServiKargo",url:"./?view=admin",description:"Panel de control"}
+        ]
+      };
+      // Apple touch icon
+      if(icon192){
+        var al=document.createElement('link');
+        al.rel='apple-touch-icon'; al.href=icon192;
+        document.head.appendChild(al);
+        var al2=document.createElement('link');
+        al2.rel='apple-touch-startup-image'; al2.href=icon512||icon192;
+        document.head.appendChild(al2);
+      }
+      // Manifest link
+      var ml=document.createElement('link');
+      ml.rel='manifest';
+      ml.setAttribute('href','data:application/manifest+json,'+encodeURIComponent(JSON.stringify(manifest)));
+      document.head.appendChild(ml);
+    }
+
+    // ── Service Worker inline (caché CDN para carga rápida offline) ─────────
+    var swCode=[
+      "const CACHE='mk-cache-v4';",
+      "const CDN_URLS=[",
+      "  'https://unpkg.com/react@18/umd/react.production.min.js',",
+      "  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',",
+      "  'https://unpkg.com/@babel/standalone@7.23.10/babel.min.js',",
+      "  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',",
+      "  'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',",
+      "  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',",
+      "  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',",
+      "  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',",
+      "  'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap',",
+      "];",
+      "self.addEventListener('install',e=>{",
+      "  self.skipWaiting();",
+      "  e.waitUntil(caches.open(CACHE).then(c=>",
+      "    Promise.allSettled(CDN_URLS.map(u=>",
+      "      fetch(u,{mode:'no-cors',credentials:'omit'}).then(r=>c.put(u,r)).catch(()=>{})",
+      "    ))",
+      "  ));",
+      "});",
+      "self.addEventListener('activate',e=>{",
+      "  e.waitUntil(",
+      "    caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))",
+      "    .then(()=>clients.claim())",
+      "  );",
+      "});",
+      "self.addEventListener('fetch',e=>{",
+      "  const u=e.request.url;",
+      "  if(u.includes('firebaseio.com')||u.includes('firebasestorage')||",
+      "     u.includes('nominatim')||u.includes('tile.openstreetmap')) return;",
+      "  if(u.includes('unpkg.com')||u.includes('gstatic.com')||",
+      "     u.includes('cdnjs.cloudflare')||u.includes('fonts.google')||",
+      "     u.includes('fonts.gstatic')){",
+      "    e.respondWith(caches.match(e.request).then(cached=>cached||",
+      "      fetch(e.request,{mode:'no-cors'}).then(r=>{",
+      "        caches.open(CACHE).then(c=>c.put(e.request,r.clone()));",
+      "        return r;",
+      "      })));",
+      "    return;",
+      "  }",
+      "  e.respondWith(",
+      "    fetch(e.request).then(r=>{",
+      "      if(r&&r.ok){const cl=r.clone();caches.open(CACHE).then(c=>c.put(e.request,cl));}",
+      "      return r;",
+      "    }).catch(()=>caches.match(e.request))",
+      "  );",
+      "});"
+    ].join('\n');
+
+    function registerSW(){
+      if(!('serviceWorker' in navigator)) return;
+      try{
+        var blob=new Blob([swCode],{type:'application/javascript'});
+        var url=URL.createObjectURL(blob);
+        navigator.serviceWorker.register(url,{scope:'./'})
+          .then(function(reg){
+            console.log('[ServiKargo PWA] SW registrado ✓', reg.scope);
+            URL.revokeObjectURL(url);
+            // Actualizar SW en segundo plano
+            reg.addEventListener('updatefound',function(){
+              var newSW=reg.installing;
+              newSW.addEventListener('statechange',function(){
+                if(newSW.state==='installed'&&navigator.serviceWorker.controller){
+                  console.log('[PWA] Nueva versión disponible');
+                }
+              });
+            });
+          })
+          .catch(function(err){ console.log('[PWA] SW no pudo registrarse:',err.message); });
+      }catch(e){ console.log('[PWA] Error SW:',e); }
+    }
+
+    // ── Install prompt ──────────────────────────────────────────────────────
+    var deferredPrompt=null;
+    window.addEventListener('beforeinstallprompt',function(e){
+      e.preventDefault(); deferredPrompt=e;
+      var btn=document.getElementById('pwa-install-fab');
+      if(btn) btn.style.display='flex';
     });
-    window.addEventListener('appinstalled', function(){
-      deferredPrompt = null;
-      var btn = document.getElementById('pwa-install-fab');
-      if(btn) btn.style.display = 'none';
+    window.addEventListener('appinstalled',function(){
+      deferredPrompt=null;
+      var btn=document.getElementById('pwa-install-fab');
+      if(btn) btn.style.display='none';
+      console.log('[PWA] ¡App instalada!');
     });
-    window.installPWA = function(){
+    window.installPWA=function(){
       if(!deferredPrompt) return;
       deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function(){
-        deferredPrompt = null;
-        var btn = document.getElementById('pwa-install-fab');
-        if(btn) btn.style.display = 'none';
+      deferredPrompt.userChoice.then(function(c){
+        deferredPrompt=null;
+        var btn=document.getElementById('pwa-install-fab');
+        if(btn) btn.style.display='none';
       });
     };
 
-    // ── Modo standalone ───────────────────────────────────────────────────────
-    window.isPWA = (window.matchMedia('(display-mode:standalone)').matches ||
-                    window.navigator.standalone === true);
+    // ── Detectar si ya está instalada (standalone mode) ─────────────────────
+    window.isPWA=(window.matchMedia('(display-mode:standalone)').matches||
+                  window.navigator.standalone===true);
     if(window.isPWA) document.documentElement.classList.add('pwa-mode');
 
-    // ── Online/Offline ────────────────────────────────────────────────────────
-    function updateOnline(){
-      var bar = document.getElementById('pwa-offline-bar');
-      if(bar) bar.style.display = navigator.onLine ? 'none' : 'flex';
+    // ── Inicializar ─────────────────────────────────────────────────────────
+    injectManifest();
+    if(document.readyState==='loading'){
+      document.addEventListener('DOMContentLoaded',registerSW);
+    }else{
+      registerSW();
     }
-    window.addEventListener('online',  updateOnline);
-    window.addEventListener('offline', updateOnline);
-    document.addEventListener('DOMContentLoaded', updateOnline);
+
   })();
   </script>
-    <!-- ═══ Estilos PWA adicionales ═════════════════════════════════════════ -->
+  <!-- ═══ Estilos PWA adicionales ═════════════════════════════════════════ -->
   <style>
     /* Safe area para notch de iPhone */
     body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}
@@ -430,78 +634,80 @@ async function guardarAlmacenNuevo(name, address, lat, lng){
 
 // ── MENSAJES WHATSAPP ─────────────────────────────────────────────────────────
 const WA={
-  pending:(r,c,t)=>`🏍️ *MotoFlex Cartagena*\n\n¡Hola ${r.name}! Recibimos tu solicitud.\n\n📋 *Código:* ${c}\n📍 *Origen:* ${r.storeName||r.store}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n💰 *Tarifa estimada:* ${fmtCOP(t)}\n\n⏳ *Estado: PENDIENTE* – Asignando motocarro...\n\n_MotoFlex – Transporte rápido en Cartagena_ 🌴`,
-  assigned:(r,c,t)=>`🏍️ *MotoFlex Cartagena*\n\n¡Hola ${r.name}! Tu servicio fue asignado.\n\n📋 *Código:* ${c}\n🏍️ *Motocarro:* ${r.assignedDriver||"Por confirmar"}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n💰 *Tarifa:* ${fmtCOP(t)}\n\n✅ *Estado: ASIGNADO* – El motocarro está en camino al punto de recogida.\n\n_MotoFlex – Transporte rápido en Cartagena_ 🌴`,
-  transit:(r,c,t)=>`🏍️ *MotoFlex Cartagena*\n\n¡Hola ${r.name}! Tu carga está en ruta. 🚀\n\n📋 *Código:* ${c}\n🏍️ *Motocarro:* ${r.assignedDriver||"Asignado"}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n💰 *Tarifa:* ${fmtCOP(t)}\n\n🚀 *Estado: EN CAMINO* – ¡Llegará pronto!\n\n_MotoFlex – Transporte rápido en Cartagena_ 🌴`,
-  delivered:(r,c,t,link)=>`🏍️ *MotoFlex Cartagena*\n\n¡Hola ${r.name}! ✅ ¡Entrega completada!\n\n📋 *Código:* ${c}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n💰 *Tarifa cobrada:* ${fmtCOP(t)}\n\n🎉 ¡Gracias por confiar en MotoFlex!\n\n⭐ *Califica tu servicio:*\n${link}\n\n_MotoFlex – Transporte rápido en Cartagena_ 🌴`,
-  novedad:(r,c,msg)=>`🏍️ *MotoFlex Cartagena*\n\n¡Hola ${r.name}! Tenemos una novedad sobre tu servicio.\n\n📋 *Código:* ${c}\n📦 *Carga:* ${r.itemDesc}\n\n⚠️ *Novedad:*\n${msg}\n\nAnte cualquier duda comunícate con nosotros.\n\n_MotoFlex – Transporte rápido en Cartagena_ 🌴`,
+  pending:(r,c,t)=>`🏍️ *ServiKargo Cartagena*\n\n¡Hola ${r.name}! Recibimos tu solicitud.\n\n📋 *Código:* ${c}\n📍 *Origen:* ${r.storeName||r.store}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n\n⏳ *Estado: PENDIENTE* – Asignando motocarro. El motocarrista te dirá el valor del servicio al confirmar.\n\n_ServiKargo – Transporte rápido en Cartagena_ 🌴`,
+  assigned:(r,c,t)=>`🏍️ *ServiKargo Cartagena*\n\n¡Hola ${r.name}! Tu servicio fue asignado.\n\n📋 *Código:* ${c}\n🏍️ *Motocarro:* ${r.assignedDriver||"Por confirmar"}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n\n✅ *Estado: ASIGNADO* – El motocarro está en camino al punto de recogida. Él te confirmará el valor del servicio.\n\n_ServiKargo – Transporte rápido en Cartagena_ 🌴`,
+  transit:(r,c,t)=>`🏍️ *ServiKargo Cartagena*\n\n¡Hola ${r.name}! Tu carga está en ruta. 🚀\n\n📋 *Código:* ${c}\n🏍️ *Motocarro:* ${r.assignedDriver||"Asignado"}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n\n🚀 *Estado: EN CAMINO* – ¡Llegará pronto!\n\n_ServiKargo – Transporte rápido en Cartagena_ 🌴`,
+  delivered:(r,c,t,link)=>`🏍️ *ServiKargo Cartagena*\n\n¡Hola ${r.name}! ✅ ¡Entrega completada!\n\n📋 *Código:* ${c}\n📦 *Carga:* ${r.itemDesc}\n🏠 *Destino:* ${r.destAddress}, ${r.destBarrio}\n\n🎉 ¡Gracias por confiar en ServiKargo!\n\n⭐ *Califica tu servicio:*\n${link}\n\n_ServiKargo – Transporte rápido en Cartagena_ 🌴`,
+  novedad:(r,c,msg)=>`🏍️ *ServiKargo Cartagena*\n\n¡Hola ${r.name}! Tenemos una novedad sobre tu servicio.\n\n📋 *Código:* ${c}\n📦 *Carga:* ${r.itemDesc}\n\n⚠️ *Novedad:*\n${msg}\n\nAnte cualquier duda comunícate con nosotros.\n\n_ServiKargo – Transporte rápido en Cartagena_ 🌴`,
 };
 const openWA=(phone,msg)=>window.open(`https://wa.me/${cleanPhone(phone)}?text=${encodeURIComponent(msg)}`,"_blank");
 
-// ═══ ZONIFICACIÓN CARTAGENA — TARIFA DE INTERMEDIACIÓN ServiKargo ═══════════
-// Esta es la tarifa que le cobra la APP al conductor por conectarle el servicio.
-// Es independiente de lo que el conductor cobre al cliente.
-//   Zona CERCANA  → $5.000
-//   Zona ALEJADA  → $7.000
-//   MULTA cancelación conductor → $10.000 (bloqueo automático si no paga)
-
-const ZONAS_CERCANAS = [
-  // Centro y zonas aledañas de fácil acceso
-  "Centro Histórico","Getsemaní","La Matuna","San Diego","Chambacú",
-  "Pie del Cerro","La Popa","Pie de la Popa","Manga","El Cabrero",
-  "Bocagrande","Castillogrande","El Laguito","Marbella","Crespo",
-  "Boston","Zaragocilla","Daniel Lemaitre","Alcibia","El Espinal",
-  "Canapote","Chiquinquirá","Torices","Montes","Arroz Barato",
-  "La Quinta","San Francisco","La Virgen","El Bosque","Villa España",
-  "Blas de Lezo","Loma Fresca","El Educador","Nariño","Alto Bosque",
-  "El Recreo","La Floresta","Portal de Galería","Villa Country","El Prado",
-];
-
-const ZONAS_ALEJADAS = [
-  // Periferias, sur, zona industrial y norte lejano
-  "La Boquilla","Manzanillo del Mar","Punta Canoa","Arroyo de Piedra",
-  "Barú","Playa Blanca","Olaya Herrera","El Pozón","Nelson Mandela",
-  "La María","Las Américas","Nuevo Paraíso","Ternera","Villa Sandra",
-  "El Campestre","Los Ejecutivos","Villa Estrella","La Candelaria",
-  "San José de los Campanos","El Silencio","El Milagro","Las Brisas",
-  "El Triunfo","Villa Luz","El Carmelo","Los Alpes","La Consolata",
-  "El Reposo","Villa Gloria","Los Cerezos","Amberes","Los Calamares",
-  "Villa Ejecutiva","La Campiña","San Fernando","La Victoria","El Libertador",
-  "Las Palmeras","Mamonal","Pasacaballos","Ceballos","La Esperanza",
-  "Bayunca","Pontezuela","Arroyo Grande","El Salado","El Toril",
-  "República de Venezuela","Martínez Martelo","Chino Pablo","El Firme",
-  "El Socorro","San Pedro Mártir","El Modelo","San Isidro","El Paraíso",
-  "Villa Rosita","La Consolación","Urbanización Crespo","El Dorado",
-  "Las Gaviotas","Villa del Rey","El Educador",
-];
-
-const COM_ZONA_CERCANA  = 5000;   // tarifa intermediación zona cercana
-const COM_ZONA_ALEJADA  = 7000;   // tarifa intermediación zona alejada
-const MULTA_CANCELACION = 10000;  // multa por cancelar servicio aceptado
-
-// Determinar zona de un barrio
-const getZonaBarrio = (barrio) => {
-  if(!barrio) return "alejada";
-  if(ZONAS_CERCANAS.some(z => barrio.toLowerCase().includes(z.toLowerCase()) || z.toLowerCase().includes(barrio.toLowerCase()))) return "cercana";
-  if(ZONAS_ALEJADAS.some(z => barrio.toLowerCase().includes(z.toLowerCase()) || z.toLowerCase().includes(barrio.toLowerCase()))) return "alejada";
-  return "alejada"; // default: si no se reconoce, cobra tarifa alejada
+// ── COMISIONES ESCALONADAS SERVIKARGO (sistema anterior, se mantiene como respaldo) ──
+// Hasta $15.000 → 12% | $15.001–$50.000 → 15% | Más de $50.000 → 18%
+// La tarifa la fija el SISTEMA al crear la solicitud → el conductor no puede manipularla
+const calcComision=(tarifa)=>{
+  const t=Number(tarifa||0);
+  if(t<=0) return{pct:0,valor:0,label:"0%"};
+  let pct = t<=15000 ? 0.12 : t<=50000 ? 0.15 : 0.18;
+  return{pct, valor:Math.round(t*pct), label:(pct*100).toFixed(0)+"%"};
 };
-
-// Calcular tarifa de intermediación por barrio destino
-const calcComision = (tarifa, barrio) => {
-  const zona   = getZonaBarrio(barrio);
-  const valor  = zona === "cercana" ? COM_ZONA_CERCANA : COM_ZONA_ALEJADA;
-  const label  = zona === "cercana" ? "Zona Cercana" : "Zona Alejada";
-  const emoji  = zona === "cercana" ? "📍" : "📍🚗";
-  return { valor, label, emoji, zona, pct:"fija" };
-};
-
 // Tabla resumen para mostrar en UI
-const ESCALA_COM = [
-  { rango:"Zona Cercana (Centro, Bocagrande, Manga, Getsemaní y alrededores)", pct:fmtCOP(COM_ZONA_CERCANA), color:"#3B82F6" },
-  { rango:"Zona Alejada (Sur, Norte lejano, Industrial y periferias)",          pct:fmtCOP(COM_ZONA_ALEJADA), color:"#F59E0B" },
-  { rango:"Multa por cancelación (bloqueo automático si no paga)",               pct:fmtCOP(MULTA_CANCELACION), color:"#DC2626" },
+const ESCALA_COM=[
+  {rango:"Hasta $15.000",  pct:"12%", color:"#3B82F6"},
+  {rango:"$15.001–$50.000",pct:"15%", color:"#F59E0B"},
+  {rango:"Más de $50.000", pct:"18%", color:"#E8622A"},
 ];
+
+// ── INTERMEDIACIÓN POR ZONA/DISTANCIA (sistema NUEVO — prevalece) ──────────────
+// La app cobra una tarifa FIJA al motocarrista por la asignación del viaje,
+// según qué tan lejos quede el destino del almacén de recogida (distancia real,
+// calculada con las coordenadas geocodificadas). El precio del servicio en sí
+// (según peso/volumen/cantidad) lo acuerda el motocarrista directo con el cliente.
+// Estos son los valores POR DEFECTO. El administrador puede modificarlos manualmente
+// desde el panel (pestaña "Zonas") — el cambio se guarda en Firebase y se aplica
+// automáticamente a partir de ese momento, sin tocar código.
+const DEFAULT_ZONAS_INTERMEDIACION=[
+  {zona:"Zona 1 – Cercana", hastaKm:3,   valor:6000, color:"#22C55E"},
+  {zona:"Zona 2 – Media",   hastaKm:6,   valor:7000, color:"#F59E0B"},
+  {zona:"Zona 3 – Lejana",  hastaKm:null,valor:8000, color:"#E8622A"}, // null = "en adelante" (sin tope)
+];
+// Copia mutable que usa realmente el cálculo — se actualiza sola cuando el admin
+// guarda cambios, o cuando llega un valor distinto desde Firebase.
+let ZONAS_ACTUAL = DEFAULT_ZONAS_INTERMEDIACION.map(z=>({...z}));
+function aplicarZonasIntermediacion(nuevas){
+  if(!Array.isArray(nuevas)||!nuevas.length) return;
+  // Normaliza: ordena por distancia y asegura que la última zona no tenga tope (Infinity)
+  const ordenadas=[...nuevas].sort((a,b)=>(a.hastaKm??Infinity)-(b.hastaKm??Infinity));
+  ordenadas[ordenadas.length-1]={...ordenadas[ordenadas.length-1],hastaKm:null};
+  ZONAS_ACTUAL=ordenadas;
+}
+function distanciaKm(lat1,lng1,lat2,lng2){
+  const R=6371;
+  const p1=lat1*Math.PI/180, p2=lat2*Math.PI/180;
+  const dp=(lat2-lat1)*Math.PI/180, dl=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return R*2*Math.asin(Math.sqrt(a));
+}
+// Devuelve {valor, zona, km, calculada}. Si faltan coordenadas geocodificadas,
+// cae de respaldo al sistema viejo (% sobre la tarifa) para no dejar el cobro en blanco.
+function calcIntermediacion(req){
+  const {storeLat,storeLng,destLat,destLng}=req||{};
+  if(storeLat&&storeLng&&destLat&&destLng){
+    const km=distanciaKm(storeLat,storeLng,destLat,destLng);
+    const tier=ZONAS_ACTUAL.find(z=>z.hastaKm==null||km<=z.hastaKm) || ZONAS_ACTUAL[ZONAS_ACTUAL.length-1];
+    return {valor:tier.valor, zona:tier.zona, km:Math.round(km*10)/10, color:tier.color, calculada:true};
+  }
+  // Respaldo: no se pudo geolocalizar (falló Nominatim o faltan coordenadas).
+  // Como el precio ya NO depende de una tarifa, usamos la zona MEDIA como valor
+  // seguro por defecto — nunca debe salir en $0.
+  const media = ZONAS_ACTUAL[Math.floor((ZONAS_ACTUAL.length-1)/2)] || ZONAS_ACTUAL[0];
+  return {valor:media.valor, zona:"Zona estimada (sin ubicación exacta)", km:null, color:"#94A3B8", calculada:false};
+}
+// Monto que efectivamente debe/debía pagar el conductor por este viaje:
+// prevalece la intermediación por zona (si ya quedó fijada); si no, cae al % viejo.
+const montoAPagar=(r)=> r?.intermediacionFijada ? (r.intermediacion||0) : calcComision(r?.tarifa).valor;
+const labelCobro=(r)=> r?.intermediacionFijada ? (r.intermediacionZona||"Zona") : ("Comisión "+calcComision(r?.tarifa).label);
+
 
 // ── SERVICIOS PARA EL HOGAR (TÉCNICOS) ──────────────────────────────────────
 const CATEGORIAS_TECNICOS=[
@@ -549,27 +755,26 @@ const WA_HOGAR={
   delivered:(r,c,link)=>`🛠️ *ServiKargo – Servicios para el Hogar*\n\n¡Hola ${r.name}! ✅ Servicio completado.\n\n📋 *Código:* ${c}\n👷 *Técnico:* ${r.assignedDriver||""}\n\n🎉 ¡Gracias por confiar en ServiKargo!\n\n⭐ *Califica el servicio:*\n${link}\n\n_ServiKargo – Cartagena_ 🌴`,
 };
 
-// ── DATOS BANCARIOS SERVIKARGO ───────────────────────────────────────────────
-// ⚠ Reemplaza los valores con tus datos reales antes de publicar
-const CUENTA_MOTOFLEX = {
+// ── DATOS BANCARIOS SERVIKARGO (edita aquí tus datos reales) ───────────────────
+const CUENTA_SERVIKARGO = {
   titular:  "ServiKargo Cartagena",
   banco:    "Bancolombia",
   tipo:     "Ahorros",
-  numero:   "XXX-XXXXXX-XX",        // ← pon tu número de cuenta real aquí
-  nequi:    "3XX XXX XXXX",          // ← pon tu número Nequi real aquí
+  numero:   "123-456789-00",        // ← reemplaza con tu número real
+  nequi:    "300 000 0000",          // ← reemplaza con tu Nequi real
+  daviplata:"300 000 0000",          // ← reemplaza con tu Daviplata real
 };
 
 // Mensaje WhatsApp de pago para el CLIENTE (transferencia)
-const msgPagoCliente=(req,code,tarifa)=>`🏍️ *MotoFlex Cartagena*\n\n¡Hola ${req.name}! Para pagar tu servicio por transferencia:\n\n💰 *Valor a pagar:* ${fmtCOP(tarifa)}\n📋 *Código del servicio:* #${code}\n\n🏦 *Datos bancarios:*\n• Banco: ${CUENTA_MOTOFLEX.banco}\n• Tipo: Cuenta ${CUENTA_MOTOFLEX.tipo}\n• Número: ${CUENTA_MOTOFLEX.numero}\n• Titular: ${CUENTA_MOTOFLEX.titular}\n\n📲 *También puedes pagar por:*\n• Nequi: ${CUENTA_MOTOFLEX.nequi}\n• Daviplata: ${CUENTA_MOTOFLEX.daviplata}\n\n⚠️ *Importante:* Envía el comprobante a este WhatsApp con el código #${code} para confirmar tu pago.\n\n_MotoFlex – Transporte rápido en Cartagena_ 🌴`;
+const msgPagoCliente=(req,code,tarifa)=>`🏍️ *ServiKargo Cartagena*\n\n¡Hola ${req.name}! Para pagar tu servicio por transferencia:\n\n💰 *Valor a pagar:* ${fmtCOP(tarifa)}\n📋 *Código del servicio:* #${code}\n\n🏦 *Datos bancarios:*\n• Banco: ${CUENTA_SERVIKARGO.banco}\n• Tipo: Cuenta ${CUENTA_SERVIKARGO.tipo}\n• Número: ${CUENTA_SERVIKARGO.numero}\n• Titular: ${CUENTA_SERVIKARGO.titular}\n\n📲 *También puedes pagar por:*\n• Nequi: ${CUENTA_SERVIKARGO.nequi}\n• Daviplata: ${CUENTA_SERVIKARGO.daviplata}\n\n⚠️ *Importante:* Envía el comprobante a este WhatsApp con el código #${code} para confirmar tu pago.\n\n_ServiKargo – Transporte rápido en Cartagena_ 🌴`;
 
-// Mensaje WhatsApp de cobro de INTERMEDIACIÓN para el CONDUCTOR
-const msgComisionConductor=(drv,req,code,com)=>`🛵 *ServiKargo Cartagena – Tarifa de intermediación*\n\n¡Hola ${drv.name}! Gracias por completar el servicio.\n\n📋 *Servicio:* #${code}\n📍 *Destino:* ${req.destBarrio} (${com.label})\n\n💳 *Valor a pagar a ServiKargo:* ${fmtCOP(com.valor)}\n_(Esta es la tarifa de intermediación, no el pago del cliente)_\n\n⏰ *Plazo: 12 horas*\nSi no pagas antes de las ${new Date(Date.now()+12*3600*1000).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})} de hoy, tu cuenta quedará *bloqueada automáticamente*.\n\n🏦 *Transfiere a:*\n• 📲 Nequi: ${CUENTA_MOTOFLEX.nequi}\n• 🏦 ${CUENTA_MOTOFLEX.banco} ${CUENTA_MOTOFLEX.tipo}: ${CUENTA_MOTOFLEX.numero}\n\nEnvía el comprobante con tu nombre y el código #${code}.\n\n_ServiKargo Cartagena_ 🌴`;
-
-// Mensaje WhatsApp de MULTA POR CANCELACIÓN al CONDUCTOR
-const msgMultaConductor=(drv,req,code)=>`⚠️ *ServiKargo Cartagena – MULTA POR CANCELACIÓN*\n\n¡Hola ${drv.name}! Cancelaste un servicio que ya habías aceptado.\n\n📋 *Servicio cancelado:* #${code}\n📍 *Destino:* ${req.destBarrio}\n\n💸 *Multa a pagar:* ${fmtCOP(MULTA_CANCELACION)}\n\n⏰ *Plazo: 12 horas*\nSi no pagas la multa, tu cuenta quedará *bloqueada automáticamente*.\n\n🏦 *Transfiere a:*\n• 📲 Nequi: ${CUENTA_MOTOFLEX.nequi}\n• 🏦 ${CUENTA_MOTOFLEX.banco} ${CUENTA_MOTOFLEX.tipo}: ${CUENTA_MOTOFLEX.numero}\n\nEnvía el comprobante con tu nombre y el código #${code}.\n\n_ServiKargo Cartagena_ 🌴`;
+// Mensaje WhatsApp de cobro de COMISIÓN para el CONDUCTOR
+const msgComisionConductor=(drv,req,code,com)=>`🏍️ *ServiKargo Cartagena – Liquidación*\n\n¡Hola ${drv.name}! Tienes una comisión pendiente.\n\n📋 *Servicio:* #${code}\n🏠 *Destino:* ${req.destBarrio}\n💰 *Tarifa cobrada:* ${fmtCOP(req.tarifa||0)}\n📊 *Comisión (${com.label}):* ${fmtCOP(com.valor)}\n\n⏰ *Plazo de pago: 12 horas*\nSi no pagas antes de las ${new Date(Date.now()+12*3600*1000).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})} de hoy, tu cuenta quedará *bloqueada temporalmente*.\n\n🏦 *Transfiere a:*\n• Nequi: ${CUENTA_SERVIKARGO.nequi}\n• Daviplata: ${CUENTA_SERVIKARGO.daviplata}\n• ${CUENTA_SERVIKARGO.banco} ${CUENTA_SERVIKARGO.tipo}: ${CUENTA_SERVIKARGO.numero}\n\nEnvía el comprobante con tu nombre a este número.\n\n_ServiKargo Cartagena_ 🌴`;
+// Cobro por INTERMEDIACIÓN DE ZONA (sistema nuevo — se cobra al asignarse el viaje)
+const msgIntermediacionConductor=(drv,req,code,interm)=>`🏍️ *ServiKargo Cartagena – Cobro por asignación*\n\n¡Hola ${drv.name}! Se te asignó un nuevo servicio.\n\n📋 *Servicio:* #${code}\n🏠 *Destino:* ${req.destBarrio}\n📍 *${interm.zona}*${interm.km?` (~${interm.km} km)`:""}\n\n💰 *Debes pagar a ServiKargo por esta asignación:* ${fmtCOP(interm.valor)}\n\n⚠️ Este cobro aplica por la asignación del viaje, sin importar el valor que acuerdes con el cliente por el servicio.\n\n⏰ *Plazo de pago: 12 horas*\nSi no pagas antes de las ${new Date(Date.now()+12*3600*1000).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"})} de hoy, tu cuenta quedará *bloqueada temporalmente*.\n\n🏦 *Transfiere a:*\n• Nequi: ${CUENTA_SERVIKARGO.nequi}\n• Daviplata: ${CUENTA_SERVIKARGO.daviplata}\n• ${CUENTA_SERVIKARGO.banco} ${CUENTA_SERVIKARGO.tipo}: ${CUENTA_SERVIKARGO.numero}\n\nEnvía el comprobante con tu nombre a este número.\n\n_ServiKargo Cartagena_ 🌴`;
 
 // Mensaje WhatsApp de bloqueo al CONDUCTOR
-const msgBloqueoConductor=(drv,motivo,valor)=>`🚫 *ServiKargo Cartagena – CUENTA BLOQUEADA*\n\n¡Hola ${drv.name}! Tu cuenta ha sido bloqueada automáticamente.\n\n❌ *Motivo:* ${motivo}\n💰 *Valor adeudado:* ${fmtCOP(valor)}\n\nPara desbloquear, paga y envía el comprobante a este número.\n\n• 📲 Nequi: ${CUENTA_MOTOFLEX.nequi}\n• 🏦 ${CUENTA_MOTOFLEX.banco}: ${CUENTA_MOTOFLEX.numero}\n\n_ServiKargo Cartagena_ 🌴`;
+const msgBloqueoConductor=(drv,com)=>`🚫 *ServiKargo Cartagena – CUENTA BLOQUEADA*\n\n¡Hola ${drv.name}! Tu cuenta ha sido bloqueada temporalmente por comisión pendiente.\n\n💰 *Valor adeudado:* ${fmtCOP(com)}\n\nPara desbloquear tu cuenta, paga la comisión y envía el comprobante a este número.\n\n🏦 Nequi: ${CUENTA_SERVIKARGO.nequi}\n🏦 Daviplata: ${CUENTA_SERVIKARGO.daviplata}\n\n_ServiKargo Cartagena_ 🌴`;
 
 
 const SVG={
@@ -596,6 +801,161 @@ const SVG={
 };
 const Icon=({name,size=18,color="currentColor"})=>(
   <span style={{display:"inline-flex",width:size,height:size,color,flexShrink:0}}>{SVG[name]}</span>
+);
+// ── LOGO OFICIAL SERVIKARGO (personaje motocarrista sobre motocarro) ───────────
+const BrandLogo=({size=44})=>(
+  <svg viewBox="0 0 320 340" width={size} height={size*340/320} style={{display:"block"}}>
+
+        
+        <ellipse cx="160" cy="336" rx="110" ry="7" fill="rgba(0,0,0,.18)"/>
+
+        
+        
+        <rect x="14" y="208" width="156" height="68" rx="5" fill="#0A4F6E"/>
+        <rect x="16" y="210" width="152" height="64" rx="4" fill="#0d3a52"/>
+        <rect x="14" y="208" width="156" height="12" rx="4" fill="#1a5a7e"/>
+        
+        <rect x="40" y="226" width="104" height="38" rx="6" fill="#FF6B35"/>
+        <text x="92" y="242" textAnchor="middle" fontFamily="Black Han Sans,sans-serif" fontSize="10" fill="#fff" letterSpacing="1">SERVI</text>
+        <text x="92" y="255" textAnchor="middle" fontFamily="Black Han Sans,sans-serif" fontSize="10" fill="#FFE066" letterSpacing="1">KARGO</text>
+        
+        <circle cx="26" cy="218" r="3.5" fill="#0A4F6E"/><circle cx="26" cy="218" r="1.5" fill="#1a5a7e"/>
+        <circle cx="158" cy="218" r="3.5" fill="#0A4F6E"/><circle cx="158" cy="218" r="1.5" fill="#1a5a7e"/>
+
+        
+        <path d="M168,278 L224,248 L264,248 L286,278Z" fill="#0A4F6E"/>
+        <rect x="166" y="236" width="8" height="46" rx="4" fill="#1a5a7e"/>
+        
+        <rect x="208" y="248" width="52" height="38" rx="6" fill="#0A4F6E"/>
+        <rect x="212" y="252" width="44" height="30" rx="4" fill="#0d3a52"/>
+        <rect x="216" y="256" width="36" height="8" rx="3" fill="#1a5a7e"/>
+        <rect x="216" y="268" width="36" height="8" rx="3" fill="#1a5a7e"/>
+        
+        <path d="M204,290 Q188,298 176,302" stroke="#6B7280" strokeWidth="5" fill="none" strokeLinecap="round"/>
+
+        
+        
+        <circle cx="284" cy="292" r="30" fill="#1a1a1a"/>
+        <circle cx="284" cy="292" r="23" fill="none" stroke="#2a2a2a" strokeWidth="2"/>
+        <circle cx="284" cy="292" r="14" fill="#111"/>
+        <circle cx="284" cy="292" r="7" fill="#0A4F6E"/>
+        <line x1="284" y1="269" x2="284" y2="315" stroke="#333" strokeWidth="1.8"/>
+        <line x1="261" y1="292" x2="307" y2="292" stroke="#333" strokeWidth="1.8"/>
+        <line x1="268" y1="276" x2="300" y2="308" stroke="#333" strokeWidth="1.4"/>
+        <line x1="300" y1="276" x2="268" y2="308" stroke="#333" strokeWidth="1.4"/>
+        <ellipse cx="274" cy="281" rx="7" ry="4" fill="rgba(255,255,255,.07)" transform="rotate(-30,274,281)"/>
+        
+        <rect x="258" y="218" width="8" height="50" rx="4" fill="#1a5a7e"/>
+        
+        <rect x="248" y="213" width="58" height="9" rx="4" fill="#FF6B35"/>
+        <rect x="296" y="210" width="12" height="15" rx="6" fill="#1a1a1a"/>
+        <rect x="248" y="210" width="12" height="15" rx="6" fill="#1a1a1a"/>
+        
+        <ellipse cx="308" cy="220" rx="11" ry="8" fill="#FFE066"/>
+        <ellipse cx="308" cy="220" rx="7" ry="5" fill="#fff"/>
+        <path d="M319,217 L330,213" stroke="#FFE066" strokeWidth="2.5" strokeLinecap="round" opacity=".7"/>
+        <path d="M319,220 L332,220" stroke="#FFE066" strokeWidth="2.5" strokeLinecap="round" opacity=".7"/>
+        <path d="M319,223 L330,227" stroke="#FFE066" strokeWidth="2.5" strokeLinecap="round" opacity=".7"/>
+        
+        <path d="M222,220 Q240,212 262,212 Q278,212 284,220 Q268,226 240,226 Q228,226 222,220Z" fill="#111"/>
+
+        
+        <circle cx="50" cy="298" r="26" fill="#1a1a1a"/>
+        <circle cx="50" cy="298" r="20" fill="none" stroke="#2a2a2a" strokeWidth="2"/>
+        <circle cx="50" cy="298" r="11" fill="#111"/>
+        <circle cx="50" cy="298" r="5" fill="#0A4F6E"/>
+        <line x1="50" y1="278" x2="50" y2="318" stroke="#333" strokeWidth="1.8"/>
+        <line x1="30" y1="298" x2="70" y2="298" stroke="#333" strokeWidth="1.8"/>
+        
+        <circle cx="136" cy="298" r="26" fill="#1a1a1a"/>
+        <circle cx="136" cy="298" r="20" fill="none" stroke="#2a2a2a" strokeWidth="2"/>
+        <circle cx="136" cy="298" r="11" fill="#111"/>
+        <circle cx="136" cy="298" r="5" fill="#0A4F6E"/>
+        <line x1="136" y1="278" x2="136" y2="318" stroke="#333" strokeWidth="1.8"/>
+        <line x1="116" y1="298" x2="156" y2="298" stroke="#333" strokeWidth="1.8"/>
+
+        
+        
+        <rect x="186" y="176" width="26" height="70" rx="12" fill="#0A4F6E"/>
+        <rect x="218" y="176" width="26" height="70" rx="12" fill="#0A4F6E"/>
+        
+        <rect x="180" y="236" width="36" height="18" rx="8" fill="#1a1a2e"/>
+        <rect x="214" y="236" width="36" height="18" rx="8" fill="#1a1a2e"/>
+
+        
+        <path d="M164,118 Q162,176 165,192 L254,192 L257,118 Q228,105 210,103 Q190,105 164,118Z" fill="#FF6B35"/>
+        
+        <path d="M174,118 Q210,110 246,116 L242,178 L178,180Z" fill="rgba(255,224,102,.15)"/>
+        <path d="M207,103 L204,192" stroke="#FFE066" strokeWidth="2" strokeDasharray="4,3" opacity=".5"/>
+        
+        <rect x="184" y="128" width="52" height="32" rx="7" fill="rgba(255,255,255,.18)"/>
+        <text x="210" y="143" textAnchor="middle" fontFamily="Black Han Sans,sans-serif" fontSize="9" fill="#fff" letterSpacing=".5">SERVI</text>
+        <text x="210" y="155" textAnchor="middle" fontFamily="Black Han Sans,sans-serif" fontSize="9" fill="#FFE066" letterSpacing=".5">KARGO</text>
+        
+        <rect x="162" y="180" width="96" height="12" rx="5" fill="#0A4F6E"/>
+        <rect x="196" y="181" width="26" height="10" rx="4" fill="#FFE066"/>
+
+        
+        <path d="M164,128 Q128,142 122,170" stroke="#FF6B35" strokeWidth="22" strokeLinecap="round" fill="none"/>
+        <circle cx="120" cy="178" r="14" fill="#F4A261"/>
+        
+        <path d="M108,170 Q118,162 128,168 Q138,174 130,184 Q122,192 112,186 Q104,180 108,170Z" fill="#94A3B8"/>
+        <path d="M120,166 L106,192" stroke="#64748B" strokeWidth="3" strokeLinecap="round"/>
+        <circle cx="118" cy="168" r="5" fill="#64748B"/>
+
+        
+        <path d="M257,128 Q286,142 290,165" stroke="#FF6B35" strokeWidth="22" strokeLinecap="round" fill="none"/>
+        <circle cx="292" cy="173" r="14" fill="#F4A261"/>
+        
+        <rect x="288" y="148" width="8" height="36" rx="4" fill="#FF6B35" transform="rotate(20,292,166)"/>
+        <rect x="288" y="178" width="8" height="14" rx="2" fill="#94A3B8" transform="rotate(20,292,185)"/>
+
+        
+        <rect x="200" y="96" width="26" height="20" rx="7" fill="#F4A261"/>
+
+        
+        <ellipse cx="213" cy="70" rx="46" ry="50" fill="#F4A261"/>
+        
+        <ellipse cx="175" cy="79" rx="12" ry="8" fill="rgba(240,120,80,.35)"/>
+        <ellipse cx="251" cy="79" rx="12" ry="8" fill="rgba(240,120,80,.35)"/>
+
+        
+        <ellipse cx="196" cy="62" rx="10" ry="12" fill="#fff"/>
+        <ellipse cx="230" cy="62" rx="10" ry="12" fill="#fff"/>
+        <ellipse cx="197" cy="64" rx="7" ry="9" fill="#1a0a05"/>
+        <ellipse cx="231" cy="64" rx="7" ry="9" fill="#1a0a05"/>
+        <circle cx="200" cy="60" r="3" fill="#fff"/>
+        <circle cx="234" cy="60" r="3" fill="#fff"/>
+
+        
+        <path d="M184,50 Q196,43 208,48" stroke="#2C1810" strokeWidth="3" strokeLinecap="round" fill="none"/>
+        <path d="M218,48 Q230,43 242,50" stroke="#2C1810" strokeWidth="3" strokeLinecap="round" fill="none"/>
+
+        
+        <ellipse cx="213" cy="76" rx="5" ry="4" fill="#E8956D"/>
+
+        
+        <path d="M192,90 Q213,108 234,90" stroke="#C0392B" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
+        <path d="M194,91 Q213,104 232,91 Q213,108 194,91Z" fill="#E74C3C"/>
+        <path d="M198,95 Q213,101 228,95 Q213,99 198,95Z" fill="#fff"/>
+
+        
+        <path d="M164,64 Q164,20 213,20 Q262,20 262,64 Q262,78 252,84 L174,84 Q164,78 164,64Z" fill="#FF6B35"/>
+        <path d="M166,76 L260,76 L252,84 L174,84Z" fill="#e8522a"/>
+        <path d="M174,76 L252,76 L250,82 L176,82Z" fill="rgba(0,0,0,.2)"/>
+        
+        <rect x="194" y="30" width="38" height="30" rx="8" fill="rgba(255,255,255,.2)"/>
+        <text x="213" y="46" textAnchor="middle" fontFamily="Black Han Sans,sans-serif" fontSize="10" fill="#fff" letterSpacing="1">SK</text>
+        <text x="213" y="58" textAnchor="middle" fontFamily="Black Han Sans,sans-serif" fontSize="8" fill="rgba(255,255,255,.8)" letterSpacing="2">CARGO</text>
+        
+        <ellipse cx="180" cy="40" rx="12" ry="7" fill="rgba(255,255,255,.22)" transform="rotate(-20,180,40)"/>
+        
+        <rect x="162" y="66" width="8" height="14" rx="4" fill="#0A4F6E"/>
+        <rect x="256" y="66" width="8" height="14" rx="4" fill="#0A4F6E"/>
+        
+        <rect x="172" y="56" width="16" height="5" rx="3" fill="rgba(0,0,0,.15)"/>
+        <rect x="238" y="56" width="16" height="5" rx="3" fill="rgba(0,0,0,.15)"/>
+        </svg>
 );
 const Field=({icon,label,required,children})=>(
   <div style={{marginBottom:14}}>
@@ -676,6 +1036,35 @@ function WAModal({req,code,status,tarifa,onClose}){
   );
 }
 
+// Modal para avisarle al MOTOCARRISTA cuánto debe pagar a la app por la asignación.
+// Se abre apenas se asigna el viaje; el envío por WhatsApp requiere un clic real
+// (por eso es un botón y no un window.open automático — los navegadores bloquean
+// los pop-ups que no vienen de un clic directo del usuario).
+function CobroModal({drv,req,code,interm,onClose}){
+  if(!drv||!interm) return null;
+  const msg = msgIntermediacionConductor(drv,req,code,interm);
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><Icon name="wa" size={22} color="#25D366"/>
+            <h3 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:G.darkSlate}}>COBRAR AL MOTOCARRISTA</h3>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:G.midGray,cursor:"pointer",display:"flex"}}><Icon name="x" size={20}/></button>
+        </div>
+        <p style={{fontSize:13,color:G.midGray,marginBottom:10}}>Avisar a <strong style={{color:G.darkSlate}}>{drv.name}</strong> cuánto debe pagar por este viaje ({interm.zona}):</p>
+        <div style={{background:"#FFF7ED",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:"#9A3412",whiteSpace:"pre-wrap",fontFamily:"monospace",lineHeight:1.6,maxHeight:200,overflow:"auto"}}>{msg}</div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:"11px",borderRadius:9,border:`1.5px solid ${G.lightBorder}`,background:"#fff",fontWeight:600,fontSize:14,cursor:"pointer",color:G.midGray}}>Omitir</button>
+          <button className="wa-btn" onClick={()=>{openWA(drv.phone,msg);onClose();}} style={{flex:2,padding:"11px"}}>
+            <Icon name="wa" size={18} color="#fff"/> Enviar WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  VISTA CALIFICACIÓN (cliente llega desde link del WhatsApp)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -736,7 +1125,7 @@ function CalificarView({reqId}){
         <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:G.darkSlate,marginBottom:8}}>¡GRACIAS POR CALIFICAR!</h2>
         <div style={{fontSize:28,marginBottom:8}}>{[1,2,3,4,5].map(i=><span key={i} style={{color:i<=(req.rating||rating)?"#F59E0B":"#D1D5DB"}}>★</span>)}</div>
         <p style={{color:G.midGray,fontSize:14}}>Tu calificación nos ayuda a mejorar el servicio.</p>
-        <p style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:700,color:G.cartagenaBlue,marginTop:16}}>MotoFlex Cartagena 🌴</p>
+        <p style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:700,color:G.cartagenaBlue,marginTop:16}}>ServiKargo Cartagena 🌴</p>
       </div>
     </div>
   );
@@ -745,8 +1134,8 @@ function CalificarView({reqId}){
     <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${G.cartagenaBlue} 0%,#0d6a91 38%,${G.sandLight} 38%)`}}>
       <div style={{padding:"28px 20px 16px",textAlign:"center"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:6}}>
-          <div style={{width:40,height:40,borderRadius:10,background:G.coralAmber,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="truck" size={22} color="#fff"/></div>
-          <h1 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:"#fff",letterSpacing:.5}}>MOTOFLEX CARTAGENA</h1>
+          <div style={{width:44,height:44,borderRadius:10,overflow:"hidden",background:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}><BrandLogo size={44}/></div>
+          <h1 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:"#fff",letterSpacing:.5}}>SERVIKARGO CARTAGENA</h1>
         </div>
       </div>
       <div style={{maxWidth:420,margin:"0 auto",padding:"0 16px 36px"}}>
@@ -809,7 +1198,6 @@ function CustomerView({goHome,goBack,tarifas}){
     setErrors(e);return Object.keys(e).length===0;
   };
   const barrioFinal = form.destBarrio==="__otro__" ? (form.barrioCustom||"Otro") : form.destBarrio;
-  const tarifa=tarifas[form.destBarrio]||tarifas["Otro barrio (escribir abajo)"]||0;
   const handleSubmit=async()=>{
     if(!validate())return;
     setSubmitting(true);
@@ -818,8 +1206,14 @@ function CustomerView({goHome,goBack,tarifas}){
       const esOtroAlmacen = form.store==="Otro almacén (especificar)";
       const storeName = esOtroAlmacen ? form.storeCustom : form.store;
 
-      // Geocodificar la dirección REAL de destino (en vez de usar el centro del barrio)
-      const destGeo = await geocodeAddress(`${form.destAddress}, ${barrioFinal}, Cartagena, Colombia`);
+      // Geocodificar la dirección REAL de destino (en vez de usar el centro del barrio).
+      // Si Nominatim no encuentra la dirección exacta, caemos al centro del barrio
+      // como respaldo — así casi siempre hay coordenadas y la zona se calcula bien.
+      let destGeo = await geocodeAddress(`${form.destAddress}, ${barrioFinal}, Cartagena, Colombia`);
+      if(!destGeo && BARRIO_COORDS[barrioFinal]){
+        const [blat,blng]=BARRIO_COORDS[barrioFinal];
+        destGeo = {lat:blat, lng:blng};
+      }
 
       // Coordenadas del almacén: si es uno conocido, ya las tenemos; si es nuevo, lo geocodificamos
       let storeGeo = storesList.find(s=>s.name===storeName);
@@ -828,9 +1222,14 @@ function CustomerView({goHome,goBack,tarifas}){
         if(geo){
           storeGeo = {lat:geo.lat, lng:geo.lng};
           guardarAlmacenNuevo(storeName, form.storeCustomAddress, geo.lat, geo.lng); // queda disponible para futuros pedidos
+        }else{
+          storeGeo = {lat:CTG.lat, lng:CTG.lng}; // último recurso: centro de Cartagena, para no quedar sin coordenadas
         }
       }
 
+      // El precio del servicio ya NO lo fija la app: lo pacta el motocarrista directo
+      // con el cliente según peso/volumen/cantidad. La app solo cobra su intermediación
+      // por zona al motocarrista (se calcula al asignarse el viaje).
       const req={...form,
         destBarrio: barrioFinal,
         storeName,
@@ -838,12 +1237,12 @@ function CustomerView({goHome,goBack,tarifas}){
         destLng: destGeo?.lng ?? null,
         storeLat: storeGeo?.lat ?? null,
         storeLng: storeGeo?.lng ?? null,
-        status:"pending",createdAt:new Date().toISOString(),tarifa,
+        status:"pending",createdAt:new Date().toISOString(),
         pin, pinConfirmado:false,
         assignedDriver:null,assignedDriverId:null};
       const ref=await fbPush("requests",req);
       const code=ref.key.slice(-6).toUpperCase();
-      setDone({code,phone:form.phone,tarifa,pin});
+      setDone({code,phone:form.phone,pin});
     }catch{alert("Error al enviar. Verifica tu conexión.");}
     setSubmitting(false);
   };
@@ -892,8 +1291,8 @@ function CustomerView({goHome,goBack,tarifas}){
     <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${G.cartagenaBlue} 0%,#0d6a91 36%,${G.sandLight} 36%)`}}>
       <div style={{padding:"24px 20px 14px",textAlign:"center"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:4}}>
-          <div style={{width:38,height:38,borderRadius:10,background:G.coralAmber,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="truck" size={20} color="#fff"/></div>
-          <h1 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:800,color:"#fff",letterSpacing:.5}}>MOTOFLEX CARTAGENA</h1>
+          <div style={{width:40,height:40,borderRadius:10,overflow:"hidden",background:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}><BrandLogo size={40}/></div>
+          <h1 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:800,color:"#fff",letterSpacing:.5}}>SERVIKARGO CARTAGENA</h1>
         </div>
         <p style={{color:"rgba(255,255,255,.75)",fontSize:12}}>Solicita tu servicio de transporte en motocarro</p>
       </div>
@@ -933,22 +1332,9 @@ function CustomerView({goHome,goBack,tarifas}){
             </Field>
           )}
           {form.destBarrio&&(
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
-              {tarifa>0&&(
-                <div style={{background:"#F0FDF4",border:"1.5px solid #86EFAC",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
-                  <Icon name="money" size={16} color="#166534"/>
-                  <span style={{fontSize:13,color:"#166534"}}>Tarifa de referencia: <strong style={{fontSize:15}}>{fmtCOP(tarifa)}</strong></span>
-                  <span style={{fontSize:11,color:"#6EE7B7"}}>(negocias con el conductor)</span>
-                </div>
-              )}
-              <div style={{background:getZonaBarrio(form.destBarrio)==="cercana"?"#EFF6FF":"#FFF7ED",
-                border:`1.5px solid ${getZonaBarrio(form.destBarrio)==="cercana"?"#BFDBFE":"#FED7AA"}`,
-                borderRadius:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:6}}>
-                <span style={{fontSize:14}}>{getZonaBarrio(form.destBarrio)==="cercana"?"📍":"📍🚗"}</span>
-                <span style={{fontSize:12,color:getZonaBarrio(form.destBarrio)==="cercana"?"#1E40AF":"#92640A",fontWeight:600}}>
-                  {getZonaBarrio(form.destBarrio)==="cercana"?"Zona cercana":"Zona alejada"} · Servicio disponible
-                </span>
-              </div>
+            <div style={{background:"#EFF6FF",border:"1.5px solid #BFDBFE",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+              <Icon name="alert" size={16} color="#1D4ED8"/>
+              <span style={{fontSize:12.5,color:"#1D4ED8"}}>El motocarrista te dirá el valor del servicio al confirmar, según peso/volumen de tu carga.</span>
             </div>
           )}
           <Field icon="box" label="¿Qué va a transportar?" required><input className="field" placeholder="Ej: baldosas, tablones, tuberías, cemento..." value={form.itemDesc} onChange={e=>set("itemDesc",e.target.value)} style={eS("itemDesc")}/></Field>
@@ -972,67 +1358,7 @@ function CustomerView({goHome,goBack,tarifas}){
 // ══════════════════════════════════════════════════════════════════════════════
 //  LOGO SERVIKARGO — Trabajador con herramientas sobre motocarro
 // ══════════════════════════════════════════════════════════════════════════════
-const ServiKargoLogo=({size=80})=>(
-  <div style={{width:size,height:size,borderRadius:size*0.22,flexShrink:0,
-    background:"linear-gradient(135deg,#E8622A,#C4511E)",
-    display:"flex",alignItems:"center",justifyContent:"center",
-    boxShadow:`0 ${Math.round(size*.14)}px ${Math.round(size*.35)}px rgba(232,98,42,.4)`}}>
-    <svg viewBox="0 0 110 90" width={size*0.8} height={size*0.8} style={{display:"block"}}>
-      {/* TRABAJADOR */}
-      {/* Cabeza */}
-      <circle cx="32" cy="19" r="9" fill="white"/>
-      {/* Casco naranja */}
-      <path d="M23 20 Q23 7 32 5 Q41 7 41 20 Q38 22 38 13 Q32 11 26 13 Q26 22 23 20Z" fill="#C4511E"/>
-      <rect x="21" y="20" width="22" height="4" rx="2" fill="white" opacity="0.9"/>
-      {/* Cuerpo */}
-      <line x1="32" y1="28" x2="37" y2="47" stroke="white" strokeWidth="6" strokeLinecap="round"/>
-      {/* Pierna */}
-      <line x1="35" y1="45" x2="46" y2="54" stroke="white" strokeWidth="5" strokeLinecap="round"/>
-      {/* Brazo derecho al manubrio */}
-      <line x1="34" y1="35" x2="48" y2="30" stroke="white" strokeWidth="4" strokeLinecap="round"/>
-      {/* Brazo izquierdo con llave */}
-      <line x1="30" y1="34" x2="15" y2="26" stroke="white" strokeWidth="4" strokeLinecap="round"/>
-      {/* LLAVE INGLESA */}
-      <g transform="rotate(-30,10,18)">
-        <rect x="6" y="9" width="7" height="19" rx="3.5" fill="white"/>
-        <path d="M4 9 Q9.5 2 15 9" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
-        <line x1="4" y1="9" x2="6" y2="9" stroke="white" strokeWidth="2.8"/>
-        <line x1="13" y1="9" x2="15" y2="9" stroke="white" strokeWidth="2.8"/>
-        <path d="M4 28 Q9.5 35 15 28" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
-        <line x1="4" y1="28" x2="6" y2="28" stroke="white" strokeWidth="2.8"/>
-        <line x1="13" y1="28" x2="15" y2="28" stroke="white" strokeWidth="2.8"/>
-      </g>
-      {/* MOTOCARRO — chasis */}
-      <path d="M29 52 Q34 36 52 33 L99 33" stroke="white" strokeWidth="4.5" fill="none" strokeLinecap="round"/>
-      <line x1="52" y1="33" x2="52" y2="57" stroke="white" strokeWidth="3.5" strokeLinecap="round"/>
-      {/* Manubrio */}
-      <path d="M43 30 Q48 25 53 28" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
-      {/* CAJA DE CARGA */}
-      <rect x="52" y="30" width="47" height="27" rx="5" fill="white" opacity="0.97"/>
-      {/* Detalle caja */}
-      <line x1="52" y1="43" x2="99" y2="43" stroke="#E8622A" strokeWidth="1.5" opacity="0.5"/>
-      <line x1="75" y1="30" x2="75" y2="57" stroke="#E8622A" strokeWidth="1.5" opacity="0.35"/>
-      {/* Íconos de herramientas en la caja */}
-      <line x1="58" y1="36" x2="58" y2="50" stroke="#C4511E" strokeWidth="2" opacity="0.6" strokeLinecap="round"/>
-      <circle cx="58" cy="35" r="3" fill="none" stroke="#C4511E" strokeWidth="1.5" opacity="0.6"/>
-      <path d="M67 36 L70 44 L73 36" fill="none" stroke="#C4511E" strokeWidth="1.8" opacity="0.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <rect x="80" y="34" width="14" height="8" rx="2" fill="none" stroke="#C4511E" strokeWidth="1.5" opacity="0.6"/>
-      {/* RUEDA DELANTERA */}
-      <circle cx="22" cy="63" r="13" fill="none" stroke="white" strokeWidth="4"/>
-      <circle cx="22" cy="63" r="5" fill="white"/>
-      <circle cx="22" cy="63" r="2" fill="#E8622A"/>
-      {/* RUEDA TRASERA */}
-      <circle cx="88" cy="63" r="13" fill="none" stroke="white" strokeWidth="4"/>
-      <circle cx="88" cy="63" r="5" fill="white"/>
-      <circle cx="88" cy="63" r="2" fill="#E8622A"/>
-      {/* 3ra rueda (motocarro) */}
-      <circle cx="99" cy="63" r="10" fill="none" stroke="white" strokeWidth="3.5" opacity="0.7"/>
-      <circle cx="99" cy="63" r="4" fill="white" opacity="0.7"/>
-      {/* Eje trasero */}
-      <line x1="76" y1="60" x2="88" y2="60" stroke="white" strokeWidth="3" strokeLinecap="round"/>
-    </svg>
-  </div>
-);
+const ServiKargoLogo=({size=80})=>(<BrandLogo size={size}/>);
 
 function CustomerHogarView({goHome,goBack}){
   const [step,setStep]=useState("categoria"); // categoria | form
@@ -1084,7 +1410,11 @@ function CustomerHogarView({goHome,goBack}){
     setSubmitting(true);
     try{
       const verifyCode=genCodigoServicio();
-      const destGeo = await geocodeAddress(`${form.destAddress}, ${barrioFinal}, Cartagena, Colombia`);
+      let destGeo = await geocodeAddress(`${form.destAddress}, ${barrioFinal}, Cartagena, Colombia`);
+      if(!destGeo && BARRIO_COORDS[barrioFinal]){
+        const [blat,blng]=BARRIO_COORDS[barrioFinal];
+        destGeo = {lat:blat, lng:blng};
+      }
       const req={
         ...form, destBarrio:barrioFinal,
         destLat: destGeo?.lat ?? null,
@@ -1394,6 +1724,11 @@ function DriverApp({goHome=()=>{}}){
       const now = new Date().toISOString();
       const driverName = drvData?.name || nameIn || "Conductor";
 
+      // Intermediación por zona/distancia: se calcula y queda FIJA apenas el
+      // conductor acepta el viaje (aunque después se cancele, ya se cobra).
+      const interm = calcIntermediacion(req);
+      const deadlineISO = new Date(Date.now()+12*3600*1000).toISOString();
+
       // 1. Setear estado local PRIMERO — respuesta inmediata al conductor
       const updatedReq = {
         ...req,
@@ -1401,6 +1736,10 @@ function DriverApp({goHome=()=>{}}){
         assignedDriver:  driverName,
         assignedDriverId: drvKey,
         assignedAt:      now,
+        intermediacion:      interm.valor,
+        intermediacionZona:  interm.zona,
+        intermediacionKm:    interm.km,
+        intermediacionFijada: true,
       };
       setMyReq(updatedReq);
       setStep("active");
@@ -1411,8 +1750,36 @@ function DriverApp({goHome=()=>{}}){
         assignedDriver:   driverName,
         assignedDriverId: drvKey,
         assignedAt:       now,
+        intermediacion:      interm.valor,
+        intermediacionZona:  interm.zona,
+        intermediacionKm:    interm.km,
+        intermediacionFijada: true,
       });
-      await db.ref(`drivers/${drvKey}`).update({available: false});
+      await db.ref(`drivers/${drvKey}`).update({
+        available: false,
+        comisionPendiente: (drvData?.comisionPendiente||0) + interm.valor,
+        ultimaComisionDeadline: deadlineISO,
+        ultimaComisionReqKey: req.fbKey,
+      });
+      await db.ref(`comisiones/${req.fbKey}`).set({
+        drvKey, drvName: driverName,
+        reqKey: req.fbKey, code: req.fbKey.slice(-6).toUpperCase(),
+        zona: interm.zona, km: interm.km, comision: interm.valor, tipo:"intermediacion_zona",
+        deadline: deadlineISO, status: "pendiente", createdAt: now,
+      });
+      // Bloqueo automático a las 12h si sigue pendiente
+      setTimeout(async()=>{
+        const comSnap = await db.ref(`comisiones/${req.fbKey}`).get();
+        if(comSnap.exists() && comSnap.val().status==="pendiente"){
+          await db.ref(`drivers/${drvKey}`).update({
+            blocked: true,
+            blockedReason: `Intermediación pendiente #${req.fbKey.slice(-6).toUpperCase()} — ${fmtCOP(interm.valor)}`,
+            blockedAt: new Date().toISOString(),
+            avisoBloqueoPendiente: true, // el admin lo notifica con un clic al volver a abrir el panel
+          });
+          await db.ref(`comisiones/${req.fbKey}`).update({status:"bloqueado"});
+        }
+      }, 12*60*60*1000);
 
     } catch(e) {
       console.error("Error acceptOffer:", e);
@@ -1488,127 +1855,61 @@ function DriverApp({goHome=()=>{}}){
     await db.ref(`requests/${myReq.fbKey}`).update({status:newStatus, updatedAt:now});
 
     if(newStatus==="delivered"){
-      // Comisión = tarifa fija de intermediación según zona del destino
-      const com = calcComision(myReq.tarifa, myReq.destBarrio);
-      const deadlineISO = new Date(Date.now()+12*3600*1000).toISOString();
       const code = myReq.fbKey?.slice(-6).toUpperCase()||"";
 
-      // 1. Actualizar stats del driver + marcar comisión pendiente
+      // Stats básicas del driver (viajes/ingresos) SIEMPRE se actualizan al entregar
       await db.ref(`drivers/${drvKey}`).update({
         available: true,
         totalViajes: (drvData?.totalViajes||0)+1,
         ingresos: (drvData?.ingresos||0)+(myReq.tarifa||0),
-        comisionPendiente: (drvData?.comisionPendiente||0) + com.valor,
-        ultimaComisionDeadline: deadlineISO,
-        ultimaComisionReqKey: myReq.fbKey,
       });
 
-      // 2. Registrar comisión en Firebase para auditoría
-      await db.ref(`comisiones/${myReq.fbKey}`).set({
-        drvKey, drvName: drvData?.name||"",
-        reqKey: myReq.fbKey, code,
-        tarifa: myReq.tarifa, comision: com.valor, pct: com.label,
-        deadline: deadlineISO,
-        status: "pendiente",   // pendiente | pagada | bloqueado
-        createdAt: now,
-      });
+      // El cobro por INTERMEDIACIÓN DE ZONA ya se hizo al momento de asignar el viaje
+      // (ver AdminDashboard → markStatus). Solo si ese viaje es "viejo" y NUNCA se le fijó
+      // intermediación, usamos de respaldo el sistema anterior de % sobre la tarifa.
+      if(!myReq.intermediacionFijada){
+        const com = calcComision(myReq.tarifa);
+        const deadlineISO = new Date(Date.now()+12*3600*1000).toISOString();
 
-      // 3. Enviar WhatsApp al conductor con cobro de comisión
-      if(drvData?.phone){
-        const msgCom = msgComisionConductor(drvData, myReq, code, com);
-        window.open(`https://wa.me/${cleanPhone(drvData.phone)}?text=${encodeURIComponent(msgCom)}`,"_blank");
-      }
-
-      // 4. Programar bloqueo automático a las 12h
-      setTimeout(async()=>{
-        // Verificar si sigue pendiente
-        const comSnap = await db.ref(`comisiones/${myReq.fbKey}`).get();
-        if(comSnap.exists() && comSnap.val().status==="pendiente"){
-          await db.ref(`drivers/${drvKey}`).update({
-            blocked: true,
-            blockedReason: `Comisión pendiente #${code} — ${fmtCOP(com.valor)}`,
-            blockedAt: new Date().toISOString(),
-          });
-          await db.ref(`comisiones/${myReq.fbKey}`).update({status:"bloqueado"});
-          // WhatsApp de bloqueo
-          if(drvData?.phone){
-            const msgBlq = msgBloqueoConductor(drvData, "Comisión pendiente #"+code, com.valor);
-            window.open(`https://wa.me/${cleanPhone(drvData.phone)}?text=${encodeURIComponent(msgBlq)}`,"_blank");
-          }
+        await db.ref(`drivers/${drvKey}`).update({
+          comisionPendiente: (drvData?.comisionPendiente||0) + com.valor,
+          ultimaComisionDeadline: deadlineISO,
+          ultimaComisionReqKey: myReq.fbKey,
+        });
+        await db.ref(`comisiones/${myReq.fbKey}`).set({
+          drvKey, drvName: drvData?.name||"",
+          reqKey: myReq.fbKey, code,
+          tarifa: myReq.tarifa||0, comision: com.valor, pct: com.label,
+          deadline: deadlineISO,
+          status: "pendiente",   // pendiente | pagada | bloqueado
+          createdAt: now,
+        });
+        if(drvData?.phone){
+          const msgCom = msgComisionConductor(drvData, myReq, code, com);
+          window.open(`https://wa.me/${cleanPhone(drvData.phone)}?text=${encodeURIComponent(msgCom)}`,"_blank");
         }
-      }, 12*60*60*1000); // 12 horas en ms
+        setTimeout(async()=>{
+          const comSnap = await db.ref(`comisiones/${myReq.fbKey}`).get();
+          if(comSnap.exists() && comSnap.val().status==="pendiente"){
+            await db.ref(`drivers/${drvKey}`).update({
+              blocked: true,
+              blockedReason: `Comisión pendiente #${code} — ${fmtCOP(com.valor)}`,
+              blockedAt: new Date().toISOString(),
+            });
+            await db.ref(`comisiones/${myReq.fbKey}`).update({status:"bloqueado"});
+            if(drvData?.phone){
+              const msgBlq = msgBloqueoConductor(drvData, com.valor);
+              window.open(`https://wa.me/${cleanPhone(drvData.phone)}?text=${encodeURIComponent(msgBlq)}`,"_blank");
+            }
+          }
+        }, 12*60*60*1000);
+      }
 
       setStep("done");
       setMyReq(prev=>({...prev,status:"delivered"}));
     } else {
       setMyReq(prev=>({...prev,status:newStatus}));
     }
-  };
-
-  // ── CANCELAR SERVICIO con multa ────────────────────────────────────────────
-  const cancelarServicio = async() => {
-    if(!myReq || !drvKey) return;
-    const confirmar = window.confirm(
-      "⚠️ ¿Cancelar este servicio?\n\n" +
-      "Al cancelar un servicio aceptado deberás pagar una multa de " +
-      fmtCOP(MULTA_CANCELACION) + " a ServiKargo.\n\n" +
-      "Si no pagas en 12 horas tu cuenta será bloqueada automáticamente."
-    );
-    if(!confirmar) return;
-    const now = new Date().toISOString();
-    const code = myReq.fbKey?.slice(-6).toUpperCase()||"";
-    const deadlineISO = new Date(Date.now()+12*3600*1000).toISOString();
-
-    // 1. Marcar solicitud como cancelada y liberar driver
-    await db.ref(`requests/${myReq.fbKey}`).update({
-      status:"cancelled", updatedAt:now,
-      cancelledBy:"driver", cancelledAt:now,
-    });
-    await db.ref(`drivers/${drvKey}`).update({
-      available:true,
-      multaPendiente:(drvData?.multaPendiente||0)+MULTA_CANCELACION,
-      ultimaMultaDeadline:deadlineISO,
-      ultimaMultaReqKey:myReq.fbKey,
-    });
-
-    // 2. Registrar multa en Firebase
-    await db.ref(`multas/${myReq.fbKey}`).set({
-      drvKey, drvName:drvData?.name||"",
-      reqKey:myReq.fbKey, code,
-      valor:MULTA_CANCELACION,
-      motivo:"Cancelación de servicio aceptado",
-      deadline:deadlineISO,
-      status:"pendiente",
-      createdAt:now,
-    });
-
-    // 3. WhatsApp al conductor notificando la multa
-    if(drvData?.phone){
-      const msgMulta = msgMultaConductor(drvData, myReq, code);
-      window.open(`https://wa.me/${cleanPhone(drvData.phone)}?text=${encodeURIComponent(msgMulta)}`,"_blank");
-    }
-
-    // 4. Bloqueo automático a las 12h si no paga
-    setTimeout(async()=>{
-      const multaSnap = await db.ref(`multas/${myReq.fbKey}`).get();
-      if(multaSnap.exists() && multaSnap.val().status==="pendiente"){
-        await db.ref(`drivers/${drvKey}`).update({
-          blocked:true,
-          blockedReason:`Multa pendiente por cancelación #${code} — ${fmtCOP(MULTA_CANCELACION)}`,
-          blockedAt:new Date().toISOString(),
-          available:false,
-        });
-        await db.ref(`multas/${myReq.fbKey}`).update({status:"bloqueado"});
-        if(drvData?.phone){
-          const msgBlq = msgBloqueoConductor(drvData, "Multa por cancelación #"+code, MULTA_CANCELACION);
-          window.open(`https://wa.me/${cleanPhone(drvData.phone)}?text=${encodeURIComponent(msgBlq)}`,"_blank");
-        }
-      }
-    }, 12*60*60*1000);
-
-    setMyReq(null);
-    setStep("waiting");
-    toast && toast("Servicio cancelado. Tienes 12h para pagar la multa.");
   };
 
   // ── Toggle disponibilidad ───────────────────────────────────
@@ -1693,7 +1994,7 @@ function DriverApp({goHome=()=>{}}){
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:52,marginBottom:8}}>🛵</div>
           <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:G.darkSlate}}>PANEL MOTOCARRISTA</h2>
-          <p style={{fontSize:13,color:G.midGray,marginTop:4}}>MotoFlex Cartagena</p>
+          <p style={{fontSize:13,color:G.midGray,marginTop:4}}>ServiKargo Cartagena</p>
         </div>
         <div style={{marginBottom:14}}>
           <label style={{display:"block",fontSize:11,fontWeight:700,color:G.midGray,textTransform:"uppercase",letterSpacing:.6,marginBottom:6}}>Tu número de teléfono registrado</label>
@@ -1712,25 +2013,29 @@ function DriverApp({goHome=()=>{}}){
   );
 
   // ── VIAJE COMPLETADO ───────────────────────────────────────
-  if(step==="done") return(
+  if(step==="done"){
+    const usaZona = !!myReq?.intermediacionFijada;
+    const intermMostrar = usaZona
+      ? {valor:myReq.intermediacion, label:myReq.intermediacionZona+(myReq.intermediacionKm?` · ~${myReq.intermediacionKm} km`:"")}
+      : {valor:calcComision(myReq?.tarifa).valor, label:"Comisión "+calcComision(myReq?.tarifa).label};
+    return(
     <div style={{minHeight:"100vh",background:"#F0FDF4",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:"#fff",borderRadius:20,padding:36,maxWidth:360,width:"100%",textAlign:"center",boxShadow:"0 4px 24px #0002"}}>
         <div style={{fontSize:60,marginBottom:12}}>✅</div>
         <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:800,color:G.darkSlate,marginBottom:6}}>¡VIAJE COMPLETADO!</h2>
+        <div style={{background:"#FFF7ED",border:"1.5px solid #FDBA74",borderRadius:12,padding:"16px",marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#9A3412",letterSpacing:.5,marginBottom:10}}>YA PAGASTE (O DEBES PAGAR) A SERVIKARGO</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#9A3412"}}>{intermMostrar.label}</span>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:26,color:"#9A3412"}}>{fmtCOP(intermMostrar.valor)}</span>
+          </div>
+          <div style={{fontSize:11,color:"#9A3412",opacity:.8}}>Esta intermediación se cobra por la asignación del viaje, sin importar lo que hayas acordado con el cliente.</div>
+        </div>
         <div style={{background:"#F0FDF4",border:"1.5px solid #86EFAC",borderRadius:12,padding:"16px",marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#166534",letterSpacing:.5,marginBottom:10}}>LIQUIDACIÓN DEL VIAJE</div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}>
-            <span style={{color:"#166534"}}>Tarifa cobrada al cliente</span>
-            <span style={{fontWeight:700,color:"#166534"}}>{fmtCOP(myReq?.tarifa||0)}</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:8}}>
-            <span style={{color:"#E8622A"}}>Intermediación ServiKargo ({getZonaBarrio(myReq?.destBarrio)==="cercana"?"Zona cercana":"Zona alejada"})</span>
-            <span style={{fontWeight:700,color:"#E8622A"}}>– {fmtCOP(getZonaBarrio(myReq?.destBarrio)==="cercana"?COM_ZONA_CERCANA:COM_ZONA_ALEJADA)}</span>
-          </div>
-          <div style={{height:1,background:"#86EFAC",marginBottom:8}}/>
+          <div style={{fontSize:11,fontWeight:700,color:"#166534",letterSpacing:.5,marginBottom:10}}>LO QUE ACORDASTE CON EL CLIENTE</div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#166534"}}>TU GANANCIA NETA</span>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:20,color:"#166534"}}>Tarifa pactada con el cliente<br/>menos {fmtCOP(getZonaBarrio(myReq?.destBarrio)==="cercana"?COM_ZONA_CERCANA:COM_ZONA_ALEJADA)} de intermediación</span>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#166534"}}>VALOR DEL SERVICIO</span>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:22,color:"#166534"}}>{myReq?.tarifa?fmtCOP(myReq.tarifa):"Acordado con el cliente"}</span>
           </div>
         </div>
         <p style={{fontSize:13,color:G.midGray,lineHeight:1.7,marginBottom:20}}>Entregaste: <strong>{myReq?.destBarrio}</strong><br/>Cliente: <strong>{myReq?.name}</strong></p>
@@ -1741,6 +2046,7 @@ function DriverApp({goHome=()=>{}}){
       </div>
     </div>
   );
+  }
 
   // ── VIAJE ACTIVO ───────────────────────────────────────────
   if(step==="active") return(
@@ -1778,6 +2084,17 @@ function DriverApp({goHome=()=>{}}){
           </div>
         </div>
 
+        {/* Cobro de intermediación — visible apenas se asigna, sin depender de WhatsApp */}
+        {myReq?.intermediacionFijada&&(
+          <div style={{background:"#FFF7ED",border:"1.5px solid #FDBA74",borderRadius:14,padding:"14px 16px",marginBottom:12,boxShadow:"0 1px 8px #0001"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#9A3412",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Debes pagar a ServiKargo por este viaje</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:13,color:"#9A3412",fontWeight:600}}>{myReq.intermediacionZona}{myReq.intermediacionKm?` · ~${myReq.intermediacionKm} km`:""}</span>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:24,color:"#9A3412"}}>{fmtCOP(myReq.intermediacion)}</span>
+            </div>
+          </div>
+        )}
+
         {/* Cliente */}
         <div style={{background:"#fff",borderRadius:14,padding:"14px 16px",marginBottom:12,boxShadow:"0 1px 8px #0001"}}>
           <div style={{fontSize:11,fontWeight:700,color:G.midGray,textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Información del cliente</div>
@@ -1803,7 +2120,7 @@ function DriverApp({goHome=()=>{}}){
         </div>
 
         {/* WhatsApp cliente */}
-        <a href={`https://wa.me/${(myReq?.phone||"").replace(/[^0-9]/g,"").replace(/^(?!57)/,"57")}?text=${encodeURIComponent("🛵 Hola "+myReq?.name+", soy tu motocarrista de MotoFlex. Ya voy en camino. 🧡")}`}
+        <a href={`https://wa.me/${(myReq?.phone||"").replace(/[^0-9]/g,"").replace(/^(?!57)/,"57")}?text=${encodeURIComponent("🛵 Hola "+myReq?.name+", soy tu motocarrista de ServiKargo. Ya voy en camino. 🧡")}`}
           target="_blank"
           style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",borderRadius:12,padding:"12px",fontWeight:700,fontSize:14,textDecoration:"none",marginBottom:10}}>
           💬 Escribir al cliente por WhatsApp
@@ -1925,7 +2242,7 @@ function DriverApp({goHome=()=>{}}){
           <div style={{fontSize:20}}>🛵</div>
           <div style={{flex:1}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:"#fff"}}>{drvData?.name||nameIn}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>MotoFlex Cartagena · Motocarrista</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>ServiKargo Cartagena · Motocarrista</div>
           </div>
           {/* Toggle disponible */}
           <button onClick={toggleOnline}
@@ -2016,13 +2333,8 @@ function DriverApp({goHome=()=>{}}){
                   <span style={{marginLeft:8,fontSize:13,color:G.midGray}}>{fmtTime(req.createdAt)}</span>
                 </div>
                 <div style={{textAlign:"right"}}>
-                {(()=>{const z=getZonaBarrio(req.destBarrio);const com=z==="cercana"?COM_ZONA_CERCANA:COM_ZONA_ALEJADA;return(
-                  <div>
-                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:800,color:"#166534"}}>Libre negociación</div>
-                    <div style={{fontSize:10,color:G.midGray,marginTop:2}}>📍 {z==="cercana"?"Zona cercana":"Zona alejada"}</div>
-                    <div style={{fontSize:10,color:G.coralAmber,fontWeight:700}}>App cobra: {fmtCOP(com)}</div>
-                  </div>
-                );})()}
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:G.coralAmber}}>{fmtCOP(montoAPagar(req))}</div>
+                <div style={{fontSize:10,color:G.midGray}}>{labelCobro(req)}{req.intermediacionKm?` · ~${req.intermediacionKm} km`:""}</div>
               </div>
               </div>
               {/* Ruta */}
@@ -2456,10 +2768,10 @@ function AdminLogin({onAuth,goHome=()=>{}}){
 
         {/* Logo */}
         <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{width:64,height:64,borderRadius:16,background:G.coralAmber,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:`0 8px 24px ${G.coralAmber}50`}}>
-            <Icon name="truck" size={32} color="#fff"/>
+          <div style={{width:70,height:70,borderRadius:16,overflow:"hidden",background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+            <BrandLogo size={70}/>
           </div>
-          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:G.darkSlate,letterSpacing:.5}}>MOTOFLEX ADMIN</h2>
+          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:800,color:G.darkSlate,letterSpacing:.5}}>SERVIKARGO ADMIN</h2>
           <p style={{fontSize:13,color:G.midGray,marginTop:3}}>Panel de control · Cartagena</p>
         </div>
 
@@ -2570,12 +2882,15 @@ function AdminDashboard({onLogout}){
   const [notif,   setNotif]   =useState(null);
   const [online,  setOnline]  =useState(true);
   const [waModal, setWaModal] =useState(null);
+  const [cobroModal, setCobroModal] =useState(null);
   const [novModal,setNovModal]=useState(null);
   const [editTarifa,setEditTarifa]=useState(null);
+  const [zonas,setZonas]=useState(DEFAULT_ZONAS_INTERMEDIACION);
+  const [editZonas,setEditZonas]=useState(false);
+  const [zonasDraft,setZonasDraft]=useState(null);
 
   // ── TÉCNICOS (servicios para el hogar) ──
   const [tecnicos, setTecnicos] = useState([]);
-  const [multas,   setMultas]   = useState([]);
   const [newTec,   setNewTec]   = useState({name:"",phone:"",categoria:CATEGORIAS_TECNICOS[0].id,plan:"basico"});
   const [tecFilter,setTecFilter]= useState("all");
 
@@ -2587,7 +2902,7 @@ function AdminDashboard({onLogout}){
   const toast=(msg,ok=true)=>{setNotif({msg,ok});setTimeout(()=>setNotif(null),3500);};
   const dismissAlert=()=>{
     setNewAlert(false); setNewCount(0);
-    document.title="MotoFlex Admin";
+    document.title="ServiKargo Admin";
     if(alertTimer.current) clearTimeout(alertTimer.current);
   };
 
@@ -2606,8 +2921,8 @@ function AdminDashboard({onLogout}){
         setNewAlert(true);
         setNewCount(n=>n+added.length);
         playAlertSound("new");
-        document.title=`🔴 ${added.length} NUEVA SOLICITUD – MotoFlex Admin`;
-        sendBrowserNotif("🏍️ MotoFlex – Nueva solicitud", `${added.length} solicitud(es) pendiente(s)`);
+        document.title=`🔴 ${added.length} NUEVA SOLICITUD – ServiKargo Admin`;
+        sendBrowserNotif("🏍️ ServiKargo – Nueva solicitud", `${added.length} solicitud(es) pendiente(s)`);
         if(alertTimer.current) clearTimeout(alertTimer.current);
         alertTimer.current = setTimeout(dismissAlert, 30000);
       }
@@ -2617,6 +2932,8 @@ function AdminDashboard({onLogout}){
     dRef.on("value",snap=>{const v=snap.val()||{};setDrivers(Object.entries(v).map(([k,d])=>({...d,fbKey:k})));});
     const tRef=db.ref("tarifas");
     tRef.on("value",snap=>{if(snap.val())setTarifas(snap.val());});
+    const zRef=db.ref("zonasIntermediacion");
+    zRef.on("value",snap=>{ if(snap.val()){ setZonas(snap.val()); aplicarZonasIntermediacion(snap.val()); } });
     const cRef=db.ref(".info/connected");
     cRef.on("value",snap=>setOnline(snap.val()===true));
     // Listener de comisiones
@@ -2629,11 +2946,6 @@ function AdminDashboard({onLogout}){
     tecRef.on("value",snap=>{
       const v=snap.val()||{};
       setTecnicos(Object.entries(v).map(([k,t])=>({...t,fbKey:k})));
-    });
-    const mRef=db.ref("multas");
-    mRef.on("value",snap=>{
-      const v=snap.val()||{};
-      setMultas(Object.entries(v).map(([k,m])=>({...m,fbKey:k})).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)));
     });
     return()=>{rRef.off();dRef.off();tRef.off();cRef.off();comRef.off();tecRef.off();if(alertTimer.current)clearTimeout(alertTimer.current);};
   },[]);
@@ -2659,6 +2971,54 @@ function AdminDashboard({onLogout}){
     if(drvFbKey){
       const drv=drivers.find(d=>d.fbKey===drvFbKey);
       patch.assignedDriver=drv?.name||"";patch.assignedDriverId=drvFbKey;
+      // Intermediación por zona/distancia: se calcula y queda FIJA en el momento
+      // de la asignación (aunque el viaje se cancele después, ya se cobra).
+      if(!req.intermediacionFijada){
+        const interm=calcIntermediacion(req);
+        patch.intermediacion=interm.valor;
+        patch.intermediacionZona=interm.zona;
+        patch.intermediacionKm=interm.km;
+        patch.intermediacionFijada=true;
+
+        // Registrar la deuda del motocarrista con la app + plazo de 12h para pagar
+        const deadlineISO=new Date(Date.now()+12*3600*1000).toISOString();
+        const code=getCode(req);
+        await fbUpdate(`drivers/${drvFbKey}`,{
+          comisionPendiente:(drv?.comisionPendiente||0)+interm.valor,
+          ultimaComisionDeadline:deadlineISO,
+          ultimaComisionReqKey:req.fbKey,
+        });
+        await fbSet(`comisiones/${req.fbKey}`,{
+          drvKey:drvFbKey, drvName:drv?.name||"",
+          reqKey:req.fbKey, code,
+          zona:interm.zona, km:interm.km, comision:interm.valor, tipo:"intermediacion_zona",
+          deadline:deadlineISO, status:"pendiente", createdAt:new Date().toISOString(),
+        });
+        // Avisar al motocarrista por WhatsApp cuánto debe pagar por esta asignación.
+        // Importante: NO se abre con window.open() aquí directo, porque después de varios
+        // `await` el navegador ya no lo considera un clic directo del usuario y bloquea el
+        // pop-up en silencio. En su lugar, se muestra un modal con un botón: al hacer clic
+        // el admin sí dispara el evento en el momento justo y WhatsApp se abre sin problema.
+        if(drv?.phone){
+          setCobroModal({drv, req:{...req,...patch}, code, interm});
+        }
+        // Bloqueo automático a las 12h si sigue pendiente
+        setTimeout(async()=>{
+          const comSnap=await db.ref(`comisiones/${req.fbKey}`).get();
+          if(comSnap.exists()&&comSnap.val().status==="pendiente"){
+            await fbUpdate(`drivers/${drvFbKey}`,{
+              blocked:true,
+              blockedReason:`Intermediación pendiente #${code} — ${fmtCOP(interm.valor)}`,
+              blockedAt:new Date().toISOString(),
+              // No se puede abrir WhatsApp automáticamente 12h después (no hay clic de usuario
+              // en ese momento). Se deja marcado para que el admin lo envíe con un clic cuando
+              // vuelva a abrir el panel — ver aviso "🔔" en la lista de motocarros.
+              avisoBloqueoPendiente:true,
+            });
+            await fbUpdate(`comisiones/${req.fbKey}`,{status:"bloqueado"});
+          }
+        },12*3600*1000);
+      }
       updReq={...updReq,...patch};
       await fbUpdate(`drivers/${drvFbKey}`,{available:false});
       // stats conductor: sumar viaje
@@ -2678,12 +3038,30 @@ function AdminDashboard({onLogout}){
     await fbRemove(`requests/${req.fbKey}`);toast("Solicitud eliminada");
   };
 
-  // ── TARIFAS ──
+  // ── TARIFAS (sistema anterior, ya no se usa para el cliente pero se conserva) ──
   const saveTarifa=async(barrio,valor)=>{
     const upd={...tarifas,[barrio]:Number(valor)};
     setTarifas(upd);
     await fbSet("tarifas",upd);
     toast("Tarifa actualizada ✓");setEditTarifa(null);
+  };
+
+  // ── ZONAS DE INTERMEDIACIÓN (sistema nuevo) ──
+  const saveZonas=async(nuevasZonas)=>{
+    // Validación simple: valores numéricos válidos y hasta-km creciente
+    for(const z of nuevasZonas){
+      if(!z.valor || Number(z.valor)<=0){ toast("El valor de cada zona debe ser mayor a 0",false); return; }
+    }
+    const limpias=nuevasZonas.map((z,i)=>({
+      zona:z.zona, color:z.color,
+      valor:Number(z.valor),
+      hastaKm: i===nuevasZonas.length-1 ? null : Number(z.hastaKm),
+    }));
+    setZonas(limpias);
+    aplicarZonasIntermediacion(limpias); // se aplica de inmediato, sin esperar el round-trip de Firebase
+    await fbSet("zonasIntermediacion",limpias);
+    toast("Zonas de intermediación actualizadas ✓");
+    setEditZonas(false);
   };
 
   // ── MOTOCARROS ──
@@ -2772,16 +3150,16 @@ function AdminDashboard({onLogout}){
       "Cliente":r.name,"Teléfono":r.phone,"Almacén Origen":r.storeName||r.store,
       "Dir. Destino":r.destAddress,"Barrio":r.destBarrio,"Carga":r.itemDesc,
       "Observaciones":r.notes||"","Motocarro":r.assignedDriver||"","Tarifa":r.tarifa||0,
-      "Comisión MotoFlex":calcComision(r.tarifa).valor,"% Comisión":calcComision(r.tarifa).label,
-      "Neto Conductor":(r.tarifa||0)-calcComision(r.tarifa).valor,
+      "Cobro ServiKargo":montoAPagar(r),"Tipo de cobro":labelCobro(r),
+      "Neto Conductor":(r.tarifa||0)-montoAPagar(r),
       "Fotos al salir":   r.tienePhotosTransit  ? r.tienePhotosTransit+" foto(s) ✓"  : "Sin fotos",
       "Fotos al entregar":r.tienePhotosDelivery ? r.tienePhotosDelivery+" foto(s) ✓" : "Sin fotos",
       "Calificación":r.rating||"","Comentario":r.ratingComment||"","Última actualización":fmtShort(r.updatedAt)||"",
     }));
     const ws=XLSX.utils.json_to_sheet(rows);
     ws["!cols"]=[{wch:10},{wch:18},{wch:12},{wch:22},{wch:14},{wch:28},{wch:28},{wch:16},{wch:30},{wch:28},{wch:22},{wch:12},{wch:14},{wch:12},{wch:16},{wch:18},{wch:20},{wch:12},{wch:30},{wch:18}];
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Pedidos MotoFlex");
-    XLSX.writeFile(wb,`MotoFlex_Pedidos_${new Date().toLocaleDateString("es-CO").replace(/\//g,"-")}.xlsx`);
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Pedidos ServiKargo");
+    XLSX.writeFile(wb,`ServiKargo_Pedidos_${new Date().toLocaleDateString("es-CO").replace(/\//g,"-")}.xlsx`);
     toast("Excel descargado ✓");
   };
 
@@ -2797,13 +3175,14 @@ function AdminDashboard({onLogout}){
   const totalIngresos=requests.filter(r=>r.status==="delivered").reduce((s,r)=>s+(r.tarifa||0),0);
   const avgRating=()=>{const rated=requests.filter(r=>r.rating);return rated.length?( rated.reduce((s,r)=>s+r.rating,0)/rated.length).toFixed(1):"-";};
 
-  const TABS=[{id:"requests",label:"Solicitudes"},{id:"drivers",label:"Motocarros"},{id:"tecnicos",label:"🛠️ Técnicos"},{id:"reports",label:"Reportes"},{id:"comisiones",label:"💰 Comisiones"},{id:"multas",label:"⚠️ Multas"},{id:"tarifas",label:"🗺️ Zonas/Tarifas"},{id:"history",label:"Base Datos"},{id:"qr",label:"QR"}];
+  const TABS=[{id:"requests",label:"Solicitudes"},{id:"drivers",label:"Motocarros"},{id:"tecnicos",label:"🛠️ Técnicos"},{id:"reports",label:"Reportes"},{id:"comisiones",label:"💰 Comisiones"},{id:"tarifas",label:"📍 Zonas"},{id:"history",label:"Base Datos"},{id:"qr",label:"QR"}];
   const FILTERS=[{id:"all",label:"Todas"},{id:"pending",label:"Pendientes"},{id:"assigned",label:"Asignados"},{id:"transit",label:"En camino"},{id:"delivered",label:"Entregados"}];
 
   return(
     <div style={{minHeight:"100vh",background:"#F3F4F6"}}>
       {notif&&<div className="notif" style={{background:notif.ok?G.darkSlate:G.dangerRed}}><Icon name="check" size={16} color="#fff"/> {notif.msg}</div>}
       {waModal&&<WAModal req={waModal.req} code={waModal.code} status={waModal.status} tarifa={waModal.tarifa} onClose={()=>setWaModal(null)}/>}
+      {cobroModal&&<CobroModal drv={cobroModal.drv} req={cobroModal.req} code={cobroModal.code} interm={cobroModal.interm} onClose={()=>setCobroModal(null)}/>}
       {novModal&&<NovedadModal req={novModal.req} code={novModal.code} onClose={()=>setNovModal(null)}/>}
 
       {/* ── BANNER ALERTA NUEVA SOLICITUD ── */}
@@ -2845,7 +3224,7 @@ function AdminDashboard({onLogout}){
               border:"2px solid #081824",zIndex:1}}>{pending}</span>}
           </div>
           <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:"#fff",letterSpacing:.5}}>MOTOFLEX ADMIN</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:800,color:"#fff",letterSpacing:.5}}>SERVIKARGO ADMIN</div>
             <div style={{display:"flex",alignItems:"center",gap:5,marginTop:1}}>
               <span style={{width:7,height:7,borderRadius:"50%",background:online?"#4ADE80":"#F87171",display:"inline-block"}}/>
               <span style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>{online?"En línea · tiempo real":"Sin conexión"}</span>
@@ -2870,7 +3249,7 @@ function AdminDashboard({onLogout}){
             {label:"Entregados",  value:delivered,                       accent:G.successGreen},
             {label:"Disponibles", value:`${availDrvs.length}/${drivers.length}`, accent:G.coralAmber},
             {label:"Ingresos brutos",value:fmtCOP(totalIngresos),        accent:"#8B5CF6"},
-            {label:"Mi comisión",  value:fmtCOP(requests.filter(r=>r.status==="delivered").reduce((s,r)=>s+calcComision(r.tarifa).valor,0)), accent:G.coralAmber},
+            {label:"Mi comisión",  value:fmtCOP(requests.filter(r=>r.status==="delivered"||r.intermediacionFijada).reduce((s,r)=>s+montoAPagar(r),0)), accent:G.coralAmber},
           ].map(s=>(
             <div key={s.label} className="stat-card">
               <div style={{position:"absolute",top:0,left:0,width:3,height:"100%",background:s.accent,borderRadius:"12px 0 0 12px"}}/>
@@ -3078,6 +3457,15 @@ function AdminDashboard({onLogout}){
                     {d.blockedAt&&<span style={{color:"#B91C1C",marginLeft:6,opacity:.7}}>· {new Date(d.blockedAt).toLocaleDateString("es-CO")}</span>}
                   </div>
                 )}
+                {d.avisoBloqueoPendiente&&(
+                  <div style={{background:"#FEF3C7",borderRadius:8,padding:"8px 12px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,color:"#92400E"}}>🔔 Se bloqueó automático mientras no había nadie mirando el panel — falta avisarle por WhatsApp.</span>
+                    <button className="wa-btn" style={{padding:"6px 12px",fontSize:12}}
+                      onClick={()=>{openWA(d.phone, msgBloqueoConductor(d, d.comisionPendiente||0)); fbUpdate(`drivers/${d.fbKey}`,{avisoBloqueoPendiente:false});}}>
+                      <Icon name="wa" size={14} color="#fff"/> Avisar ahora
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -3265,7 +3653,7 @@ function AdminDashboard({onLogout}){
                 const ws=XLSX.utils.json_to_sheet(rows);
                 ws["!cols"]=[{wch:22},{wch:14},{wch:22},{wch:20},{wch:20},{wch:22},{wch:18},{wch:12}];
                 const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Conductores");
-                XLSX.writeFile(wb,`MotoFlex_Conductores_${new Date().toLocaleDateString("es-CO").replace(/\//g,"-")}.xlsx`);
+                XLSX.writeFile(wb,`ServiKargo_Conductores_${new Date().toLocaleDateString("es-CO").replace(/\//g,"-")}.xlsx`);
                 toast("Reporte descargado ✓");
               }}>
                 <Icon name="excel" size={16} color="#fff"/> Exportar conductores
@@ -3326,7 +3714,7 @@ function AdminDashboard({onLogout}){
                     {/* ── LIQUIDACIÓN COMISIÓN ── */}
                     {(()=>{
                       const ents=reqsDrv.filter(r=>r.status==="delivered");
-                      const comTot=ents.reduce((a,r)=>a+calcComision(r.tarifa).valor,0);
+                      const comTot=ents.reduce((a,r)=>a+montoAPagar(r),0);
                       const neto=(d.ingresos||0)-comTot;
                       return(
                         <div style={{background:"#FFF7ED",border:"1.5px solid #FED7AA",borderRadius:12,padding:"13px 16px",marginBottom:10}}>
@@ -3336,7 +3724,7 @@ function AdminDashboard({onLogout}){
                             <span style={{fontWeight:700}}>{fmtCOP(d.ingresos||0)}</span>
                           </div>
                           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}>
-                            <span style={{color:G.coralAmber,fontWeight:600}}>Comisión MotoFlex</span>
+                            <span style={{color:G.coralAmber,fontWeight:600}}>Comisión ServiKargo</span>
                             <span style={{fontWeight:700,color:G.coralAmber}}>– {fmtCOP(comTot)}</span>
                           </div>
                           <div style={{height:1,background:"#FED7AA",marginBottom:6}}/>
@@ -3513,7 +3901,7 @@ function AdminDashboard({onLogout}){
                 ))}
               </div>
               <div style={{marginTop:12,padding:"10px 14px",background:"#FFF7ED",borderRadius:10,fontSize:12,color:"#92400E",fontWeight:600}}>
-                🏦 Tu Nequi: <strong>{CUENTA_MOTOFLEX.nequi}</strong> · Daviplata: <strong>{CUENTA_MOTOFLEX.daviplata}</strong>
+                🏦 Tu Nequi: <strong>{CUENTA_SERVIKARGO.nequi}</strong> · Daviplata: <strong>{CUENTA_SERVIKARGO.daviplata}</strong>
               </div>
             </div>
           </div>
@@ -3523,43 +3911,69 @@ function AdminDashboard({onLogout}){
           <div className="card" style={{padding:24}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,flexWrap:"wrap",gap:10}}>
               <div>
-                <h3 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:G.darkSlate}}>TARIFAS POR BARRIO</h3>
-                <p style={{fontSize:13,color:G.midGray,marginTop:2}}>Se muestra al cliente al seleccionar su barrio de destino.</p>
+                <h3 style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:800,color:G.darkSlate}}>ZONAS DE INTERMEDIACIÓN</h3>
+                <p style={{fontSize:13,color:G.midGray,marginTop:2}}>Lo que la app cobra al motocarrista por asignarle el viaje, según qué tan lejos quede el destino del almacén. El precio del servicio lo acuerda el motocarrista directo con el cliente.</p>
               </div>
+              {!editZonas&&(
+                <button onClick={()=>{setZonasDraft(zonas.map(z=>({...z})));setEditZonas(true);}}
+                  style={{background:G.cartagenaBlue,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif"}}>
+                  ✏️ Editar zonas
+                </button>
+              )}
             </div>
             <div style={{background:"#FFF7ED",border:`1.5px solid #FED7AA`,borderRadius:10,padding:"10px 14px",marginBottom:16}}>
-              <p style={{fontSize:12,color:"#92400E"}}>💡 Haz clic en cualquier tarifa para editarla. Los cambios se guardan en Firebase al instante.</p>
+              <p style={{fontSize:12,color:"#92400E"}}>💡 El cálculo es automático: la app mide la distancia real entre el almacén y el destino y aplica la zona correspondiente. Si cambian las tarifas más adelante, edítalas aquí — se guardan en Firebase y aplican al instante, sin tocar código.</p>
             </div>
+
             <div>
-              {Object.entries(BARRIOS_POR_ZONA).map(([zona,barrios])=>(
-                <div key={zona} style={{marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:800,color:G.midGray,textTransform:"uppercase",letterSpacing:.6,marginBottom:8,paddingBottom:4,borderBottom:`1px solid #F3F4F6`}}>{zona}</div>
-                  {barrios.map(b=>(
-                <div key={b} className="tarifa-row">
-                  <span style={{fontWeight:600,fontSize:14,color:G.darkSlate}}>{b}</span>
-                  {editTarifa===b?(
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      <input type="number" min="0" step="1000"
-                        defaultValue={tarifas[b]||0}
-                        id={`tarifa-${b}`}
-                        style={{width:110,padding:"6px 10px",border:`1.5px solid ${G.cartagenaBlue}`,borderRadius:8,fontSize:14,fontWeight:700,color:G.cartagenaBlue}}/>
-                      <button onClick={()=>saveTarifa(b,document.getElementById(`tarifa-${b}`).value)}
-                        style={{background:G.successGreen,color:"#fff",border:"none",borderRadius:7,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:13}}>✓</button>
-                      <button onClick={()=>setEditTarifa(null)}
-                        style={{background:"#F3F4F6",color:G.midGray,border:"none",borderRadius:7,padding:"6px 10px",fontWeight:700,cursor:"pointer",fontSize:13}}>✕</button>
-                    </div>
+              {(editZonas?zonasDraft:zonas).map((z,i)=>{
+                const esUltima = i===(editZonas?zonasDraft:zonas).length-1;
+                return(
+                <div key={z.zona} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderRadius:12,border:`1.5px solid ${z.color}40`,background:`${z.color}0D`,marginBottom:10,flexWrap:"wrap"}}>
+                  <div style={{width:12,height:12,borderRadius:"50%",background:z.color,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:140}}>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:16,color:G.darkSlate}}>{z.zona}</div>
+                    {!editZonas&&<div style={{fontSize:12,color:G.midGray}}>{esUltima?"Más de "+((zonas[i-1]?.hastaKm)||0)+" km":`Hasta ${z.hastaKm} km`}</div>}
+                  </div>
+
+                  {editZonas?(
+                    <>
+                      {esUltima?(
+                        <div style={{fontSize:12,color:G.midGray,width:110,textAlign:"center"}}>En adelante</div>
+                      ):(
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <input type="number" min="0.5" step="0.5" value={z.hastaKm}
+                            onChange={e=>setZonasDraft(d=>d.map((x,xi)=>xi===i?{...x,hastaKm:e.target.value}:x))}
+                            style={{width:70,padding:"6px 8px",border:`1.5px solid ${G.cartagenaBlue}`,borderRadius:8,fontSize:14,fontWeight:700,color:G.cartagenaBlue}}/>
+                          <span style={{fontSize:12,color:G.midGray}}>km</span>
+                        </div>
+                      )}
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:14,color:G.midGray}}>$</span>
+                        <input type="number" min="0" step="500" value={z.valor}
+                          onChange={e=>setZonasDraft(d=>d.map((x,xi)=>xi===i?{...x,valor:e.target.value}:x))}
+                          style={{width:100,padding:"6px 8px",border:`1.5px solid ${G.cartagenaBlue}`,borderRadius:8,fontSize:14,fontWeight:700,color:G.cartagenaBlue}}/>
+                      </div>
+                    </>
                   ):(
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:700,color:G.successGreen}}>{fmtCOP(tarifas[b]||0)}</span>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:800,color:z.color}}>{fmtCOP(z.valor)}</span>
                   )}
-                  <button onClick={()=>setEditTarifa(editTarifa===b?null:b)}
-                    style={{background:editTarifa===b?"#FEE2E2":G.sandLight,color:editTarifa===b?G.dangerRed:G.cartagenaBlue,border:"none",borderRadius:7,padding:"5px 12px",fontWeight:600,cursor:"pointer",fontSize:12,fontFamily:"'Barlow Condensed',sans-serif"}}>
-                    {editTarifa===b?"Cancelar":"Editar"}
-                  </button>
                 </div>
-              ))}
-                </div>
-              ))}
+              );})}
             </div>
+
+            {editZonas&&(
+              <div style={{display:"flex",gap:10,marginTop:14}}>
+                <button onClick={()=>saveZonas(zonasDraft)}
+                  style={{background:G.successGreen,color:"#fff",border:"none",borderRadius:8,padding:"10px 20px",fontWeight:700,cursor:"pointer",fontSize:14,fontFamily:"'Barlow Condensed',sans-serif"}}>
+                  ✓ Guardar cambios
+                </button>
+                <button onClick={()=>{setEditZonas(false);setZonasDraft(null);}}
+                  style={{background:"#F3F4F6",color:G.midGray,border:"none",borderRadius:8,padding:"10px 20px",fontWeight:700,cursor:"pointer",fontSize:14,fontFamily:"'Barlow Condensed',sans-serif"}}>
+                  Cancelar
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -3596,8 +4010,8 @@ function AdminDashboard({onLogout}){
                         <td style={{maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.itemDesc}</td>
                         <td style={{whiteSpace:"nowrap",color:r.assignedDriver?G.cartagenaBlue:G.midGray}}>{r.assignedDriver||"—"}</td>
                         <td style={{whiteSpace:"nowrap",color:"#166534",fontWeight:600}}>{fmtCOP(r.tarifa||0)}</td>
-                        <td style={{whiteSpace:"nowrap",color:G.coralAmber,fontWeight:600}}>{fmtCOP(calcComision(r.tarifa).valor)}</td>
-                        <td style={{whiteSpace:"nowrap",color:G.successGreen,fontWeight:600}}>{fmtCOP((r.tarifa||0)-calcComision(r.tarifa).valor)}</td>
+                        <td style={{whiteSpace:"nowrap",color:G.coralAmber,fontWeight:600}}>{fmtCOP(montoAPagar(r))}</td>
+                        <td style={{whiteSpace:"nowrap",color:G.successGreen,fontWeight:600}}>{fmtCOP((r.tarifa||0)-montoAPagar(r))}</td>
                         <td style={{textAlign:"center"}}>{r.rating?<span style={{color:"#F59E0B",fontWeight:700}}>{r.rating}★</span>:"—"}</td>
                       </tr>
                     ))}
@@ -3628,7 +4042,7 @@ function AdminDashboard({onLogout}){
               <div style={{textAlign:"center"}}>
                 <div style={{display:"inline-block",background:G.sandLight,border:`2px dashed ${G.goldAccent}`,borderRadius:16,padding:24}}>
                   <img src={qrUrl} alt="QR" style={{width:200,height:200,display:"block",margin:"0 auto"}}/>
-                  <div style={{marginTop:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,color:G.darkSlate}}>{qrStore||"MotoFlex Cartagena"}</div>
+                  <div style={{marginTop:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,color:G.darkSlate}}>{qrStore||"ServiKargo Cartagena"}</div>
                   <div style={{fontSize:12,color:G.midGray,marginTop:2}}>Escanea para solicitar el servicio</div>
                 </div>
                 <p style={{fontSize:12,color:G.midGray,marginTop:12}}>💡 Clic derecho → "Guardar imagen" → imprimir y pegar en el almacén.</p>
@@ -3857,6 +4271,9 @@ function App(){
 
   useEffect(()=>{
     db.ref("tarifas").on("value",snap=>{if(snap.val())setTarifas(snap.val());});
+    // Cargar las zonas de intermediación configuradas por el admin (si existen);
+    // si nunca se han guardado, se quedan los valores por defecto ($6.000/$7.000/$8.000).
+    db.ref("zonasIntermediacion").on("value",snap=>{ if(snap.val()) aplicarZonasIntermediacion(snap.val()); });
   },[]);
 
   const calificarId=new URLSearchParams(window.location.search).get("calificar");
